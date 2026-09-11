@@ -1,0 +1,81 @@
+.table-section { margin-bottom: 20px; }
+.table-title {
+  font-size: 16px; font-weight: 500;
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+
+.review-table { width: 100%; }
+.review-table th, .review-table td { padding: 6px 12px; font-size: 13px; }
+
+.changes-table {
+  width: 100%;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.changes-table th,
+.changes-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.changes-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #424242;
+}
+.changes-table th.key-col { width: 20%; }
+.changes-table th.mine-col { width: 40%; }
+.changes-table th.theirs-col { width: 40%; }
+
+.changes-table tr:last-child td {
+  border-bottom: none;
+}
+
+.cat-badge {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 12px; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.cat-new          { background: #e8f5e9; color: #2e7d32; }
+.cat-updated      { background: #e3f2fd; color: #1565c0; }
+.cat-dup          { background: #fff3e0; color: #e65100; }
+.cat-conflict     { background: #fce4ec; color: #c62828; }
+
+.val-old { text-decoration: line-through; color: #999; }
+.val-new { color: #1565c0; font-weight: 500; }
+.val-mine { color: #2e7d32; font-weight: 500; }
+.val-theirs { color: #d32f2f; font-weight: 500; }
+
+.new-record-values {
+  background: #f0f8ff;
+  border: 1px solid #e3f2fd;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.new-record-values .label {
+  font-weight: 600;
+  color: #1565c0;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.field-value {
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-name {
+  font-weight: 500;
+  color: #424242;
+  min-width: 80px;
+}
+
+.field-value-text {
+  color: #616161;
+}
+
+.action-select { font-size: 13px; }

@@ -1,0 +1,124 @@
+<h2 style="margin-top: 40px;">Biomeme Runs</h2>
+
+@if (result()) {
+  @if (!result()!.biomeme_dir) {
+    <p class="config-warning">
+      <mat-icon class="icon-warn">warning</mat-icon>
+      Biomeme directory is not configured.
+      <a routerLink="/settings">Go to Settings</a> to set it up.
+    </p>
+  } @else {
+    <p class="scan-meta">
+      <strong>Directory:</strong> {{ result()!.biomeme_dir }}
+      &nbsp;|&nbsp;
+      <strong>Scanned:</strong> {{ result()!.scanned_at }}
+      @if (loading()) {
+        <mat-spinner diameter="14" style="display:inline-block;vertical-align:middle;margin-left:6px;"></mat-spinner>
+      }
+    </p>
+    <div style="margin-bottom:12px;">
+      <button mat-stroked-button (click)="launchWizardRequested.emit(null)">
+        <mat-icon>rocket_launch</mat-icon> Register &amp; Launch
+      </button>
+    </div>
+  }
+
+  <div class="run-list">
+    <div class="run-list-header">
+      <table class="runs-table">
+        <colgroup>
+          <col style="width:44px"><col><col style="width:72px"><col style="width:95px">
+          <col style="width:110px"><col style="width:115px"><col style="width:44px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th></th><th>Folder</th><th>On disk</th><th>In metadata</th>
+            <th>Runs ready</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+      </table>
+    </div>
+
+    @if (result()!.folders.length === 0) {
+      <p class="empty-state">No biomeme runs found.</p>
+    }
+
+    @for (folder of result()!.folders; track folder.folder_path) {
+      @if (!hideExcluded() || !folder.is_excluded) {
+        <div class="run-card">
+          <table class="runs-table">
+            <colgroup>
+              <col style="width:44px"><col><col style="width:72px"><col style="width:95px">
+              <col style="width:110px"><col style="width:115px"><col style="width:44px">
+            </colgroup>
+            <tbody>
+              <tr class="run-row clickable-row" (click)="toggle(folder)">
+                <td>
+                  <button mat-icon-button
+                    [matTooltip]="expanded() === folder ? 'Hide runs' : 'Show runs'"
+                    (click)="toggle(folder); $event.stopPropagation()">
+                    <mat-icon>{{ expanded() === folder ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                </td>
+                <td><strong>{{ folder.folder_path }}</strong></td>
+                <td>
+                  <mat-icon class="icon-ok" matTooltip="Found on disk">check_circle</mat-icon>
+                </td>
+                <td>
+                  <mat-icon
+                    [class]="folder.registered_count > 0 ? 'icon-ok' : 'icon-grey'"
+                    [matTooltip]="folder.registered_count > 0 ? folder.registered_count + ' run(s) registered' : 'No runs registered'">
+                    {{ folder.registered_count > 0 ? 'check_circle' : 'help_outline' }}
+                  </mat-icon>
+                </td>
+                <td>{{ folder.registered_count }} / {{ folder.file_count }}</td>
+                <td><app-run-status-chip [status]="folder.status"></app-run-status-chip></td>
+                <td (click)="$event.stopPropagation()">
+                  <button mat-icon-button
+                    [matTooltip]="folder.is_excluded ? 'Un-exclude folder' : 'Exclude folder'"
+                    (click)="excludeToggled.emit(folder)">
+                    <mat-icon [style.color]="folder.is_excluded ? '#e65100' : '#bdbdbd'">block</mat-icon>
+                  </button>
+                </td>
+              </tr>
+              @if (expanded() === folder) {
+                <tr class="detail-row">
+                  <td colspan="7">
+                    <div class="barcode-detail">
+                      <table class="barcode-table">
+                        <thead>
+                          <tr>
+                            <th>Run name</th><th>Sample code</th>
+                            <th>Sampling date</th><th>Registered</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (file of folder.files; track file.run_name) {
+                            <tr>
+                              <td><code>{{ file.run_name }}</code></td>
+                              <td>{{ file.sample_code ?? '—' }}</td>
+                              <td>{{ file.sampling_date ?? '—' }}</td>
+                              <td>
+                                <mat-icon
+                                  [class]="file.registered ? 'icon-ok' : 'icon-grey'"
+                                  [matTooltip]="file.registered ? 'Registered in database' : 'Not registered'">
+                                  {{ file.registered ? 'check_circle' : 'help_outline' }}
+                                </mat-icon>
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </div>
+} @else if (loading()) {
+  <mat-spinner diameter="32"></mat-spinner>
+}

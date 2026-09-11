@@ -1,0 +1,123 @@
+<div class="page-header">
+  <h2>Pipeline runs</h2>
+  <button mat-icon-button (click)="refresh()" matTooltip="Refresh">
+    <mat-icon>refresh</mat-icon>
+  </button>
+</div>
+
+@if (loading()) {
+  <div class="loading-row">
+    <mat-spinner diameter="28"></mat-spinner>
+    <span>Loading…</span>
+  </div>
+}
+
+@if (!loading() && runs().length === 0) {
+  <app-empty-state message="No pipeline runs yet. Launch one from the Dashboard."></app-empty-state>
+}
+
+<mat-accordion class="runs-accordion">
+  @for (run of runs(); track run.id) {
+    <mat-expansion-panel
+      [expanded]="expandedRunId() === run.id"
+      (opened)="onPanelOpen(run)"
+      (closed)="onPanelClose(run)"
+      [class.active-panel]="run.status === 'running'"
+    >
+      <mat-expansion-panel-header>
+        <mat-panel-title class="panel-title">
+          <app-run-status-chip [status]="run.status"></app-run-status-chip>
+          <span class="run-type">{{ run.pipeline_type }}</span>
+          <span class="run-accessions">{{ (run.run_accessions ?? []).join(', ') || '—' }}</span>
+        </mat-panel-title>
+        <mat-panel-description class="panel-desc">
+          @if (run.started_at) {
+            <span>{{ run.started_at | date: 'dd MMM HH:mm' }}</span>
+          }
+          @if (run.finished_at) {
+            <span class="sep">→</span>
+            <span>{{ run.finished_at | date: 'HH:mm' }}</span>
+          }
+        </mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="panel-body">
+        <div class="run-actions">
+          @if (run.status === 'running' || run.status === 'queued') {
+            <button
+              mat-stroked-button
+              color="warn"
+              (click)="cancelRun(run); $event.stopPropagation()"
+            >
+              <mat-icon>stop_circle</mat-icon> Cancel
+            </button>
+          }
+          @if (run.status !== 'running' && run.status !== 'queued') {
+            @if (run.pipeline_type === 'mpox' && run.status === 'done') {
+              <button
+                mat-stroked-button
+                matTooltip="Run squirrel phylogenetic analysis on the output of this mpox run"
+                (click)="launchSquirrel(run); $event.stopPropagation()"
+              >
+                <mat-icon>account_tree</mat-icon> Run Squirrel
+              </button>
+            }
+            <button
+              mat-stroked-button
+              matTooltip="Delete the Nextflow work directory to free disk space. Removes the resume cache for this sample."
+              (click)="deleteWorkdir(run); $event.stopPropagation()"
+            >
+              <mat-icon>folder_delete</mat-icon> Delete work dir
+            </button>
+            <button
+              mat-stroked-button
+              color="warn"
+              matTooltip="Remove this run record from the list"
+              (click)="deleteRecord(run); $event.stopPropagation()"
+            >
+              <mat-icon>delete</mat-icon> Delete record
+            </button>
+          }
+          @if (run.output_path) {
+            <button
+              mat-stroked-button
+              matTooltip="View run manifest (accessions, barcodes, sample metadata)"
+              (click)="openManifest(run); $event.stopPropagation()"
+            >
+              <mat-icon>description</mat-icon> Run manifest
+            </button>
+          }
+          @if (run.params?.pipeline_options?.extract_target) {
+            <button
+              mat-stroked-button
+              [disabled]="run.confidence_report_targets.length === 0"
+              [matTooltip]="run.confidence_report_targets.length > 0 ? 'View read extraction confidence report' : 'No confidence report found — extraction may not have completed'"
+              (click)="openConfidenceReport(run); $event.stopPropagation()"
+            >
+              <mat-icon>biotech</mat-icon> Confidence report
+            </button>
+          }
+        </div>
+
+        @if (expandedRunId() === run.id) {
+          @if (run.error_hint) {
+            <div class="error-hint">
+              <mat-icon class="error-hint-icon">warning</mat-icon>
+              <span>{{ run.error_hint }}</span>
+            </div>
+          }
+          <div class="log-header">
+            <span>Log</span>
+            @if (logStreaming()) {
+              <mat-spinner
+                diameter="12"
+                style="display:inline-block;margin-left:6px;"
+              ></mat-spinner>
+            }
+          </div>
+          <pre class="log-output">{{ logBuffer() || '(no output yet)' }}</pre>
+        }
+      </div>
+    </mat-expansion-panel>
+  }
+</mat-accordion>

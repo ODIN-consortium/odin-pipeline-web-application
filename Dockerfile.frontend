@@ -1,0 +1,56 @@
+FROM node:20-alpine AS build
+WORKDIR /app
+
+# Install corporate CA certs if present (needed behind SSL-inspection proxies).
+# node:20-alpine already includes ca-certificates — no apk install needed.
+COPY ca/ /tmp/ca-certs/
+# Build a NODE_EXTRA_CA_CERTS bundle for npm/ng. Node's PEM parser is stricter
+# than OpenSSL's: a single malformed block makes it reject the WHOLE file
+# (silently trusting no corporate cert). So include only SINGLE-cert files —
+# the root/issuing certs that chain-validate the proxy — and skip multi-cert
+# corporate dumps. CR is stripped for Windows checkouts. No-op when ca/ is empty:
+# the bundle is empty and NODE_EXTRA_CA_CERTS has no effect.
+RUN bundle=/usr/local/share/corp-ca.crt; : > "$bundle"; \
+    for f in /tmp/ca-certs/*.crt /tmp/ca-certs/*.cer /tmp/ca-certs/*.pem; do \
+        [ -e "$f" ] || continue; \
+        [ "$(grep -c 'BEGIN CERTIFICATE' "$f")" = "1" ] || continue; \
+        tr -d '\r' < "$f" >> "$bundle"; \
+    done; \
+    rm -rf /tmp/ca-certs
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/corp-ca.crt
+
+COPY frontend/package*.json ./
+# Retry npm ci up to 3 times in case the proxy drops the connection mid-download.
+RUN npm ci || npm ci || npm ci
+ENV PATH /app/node_modules/.bin:$PATH
+COPY frontend/ .
+RUN ng build
+
+FROM nginx:1.27-alpine
+# Trust corporate CA certs (SSL-inspection proxies) BEFORE any apk fetch —
+# otherwise `apk add` fails TLS verification against dl-cdn.alpinelinux.org.
+# apk validates against the hashed trust store that update-ca-certificates
+# rebuilds; appending to the ca-certificates.crt bundle is NOT enough. Install
+# each cert as a single .crt and rebuild the store. Multi-cert bundle files are
+# skipped with a warning — the single-cert root/issuing files are what matter.
+# No-op when ca/ has no certs.
+COPY ca/ /tmp/ca-certs/
+RUN for f in /tmp/ca-certs/*.crt /tmp/ca-certs/*.cer /tmp/ca-certs/*.pem; do \
+        [ -e "$f" ] || continue; \
+        b=$(basename "$f"); b="${b%.*}"; \
+        cp "$f" "/usr/local/share/ca-certificates/${b}.crt"; \
+    done; \
+    update-ca-certificates; \
+    rm -rf /tmp/ca-certs
+# apache2-utils provides htpasswd, used by the optional basic-auth entrypoint script.
+RUN apk add --no-cache apache2-utils
+COPY --from=build /app/dist/odin-frontend/browser /usr/share/nginx/html
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# Optional HTTP Basic Auth: 40-odin-basic-auth.sh (re)writes this snippet at
+# startup. Pre-create it empty so nginx starts even when auth is disabled.
+RUN touch /etc/nginx/auth_snippet.conf
+COPY frontend/docker-entrypoint.d/40-odin-basic-auth.sh /docker-entrypoint.d/40-odin-basic-auth.sh
+# Strip any CRLF (Windows checkout) and make the startup script executable.
+RUN sed -i 's/\r$//' /docker-entrypoint.d/40-odin-basic-auth.sh \
+    && chmod +x /docker-entrypoint.d/40-odin-basic-auth.sh
+EXPOSE 80

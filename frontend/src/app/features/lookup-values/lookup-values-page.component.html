@@ -1,0 +1,100 @@
+<div class="page-container">
+  <h1>Lookup lists</h1>
+  <p class="hint-text">Manage the values available in dropdowns throughout the application.</p>
+
+  <mat-accordion multi>
+    @for (listDef of lookupLists; track listDef.name) {
+      <mat-expansion-panel (opened)="loadList(listDef.name)">
+        <mat-expansion-panel-header>
+          <mat-panel-title>{{ listDef.label }}</mat-panel-title>
+          <mat-panel-description>{{ (lookupData()[listDef.name] ?? []).length }} entries</mat-panel-description>
+        </mat-expansion-panel-header>
+
+        @if (lookupLoading()[listDef.name]) {
+          <mat-spinner diameter="24" style="margin:8px auto"></mat-spinner>
+        } @else {
+          <table mat-table [dataSource]="lookupData()[listDef.name] ?? []" class="lookup-table">
+            <ng-container matColumnDef="code">
+              <th mat-header-cell *matHeaderCellDef>Code</th>
+              <td mat-cell *matCellDef="let row">
+                @if (editingId[listDef.name] === row.id) {
+                  <span class="code-fixed">{{ row.code }}</span>
+                } @else {
+                  <code>{{ row.code }}</code>
+                }
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="description">
+              <th mat-header-cell *matHeaderCellDef>Description</th>
+              <td mat-cell *matCellDef="let row">
+                @if (editingId[listDef.name] === row.id) {
+                  <input class="inline-input" [(ngModel)]="editBuffer[listDef.name].description" placeholder="Description" />
+                } @else {
+                  {{ row.description }}
+                }
+              </td>
+            </ng-container>
+
+            @if (listDef.hasExternalCode) {
+              <ng-container matColumnDef="external_code">
+                <th mat-header-cell *matHeaderCellDef>External code</th>
+                <td mat-cell *matCellDef="let row">
+                  @if (editingId[listDef.name] === row.id) {
+                    <input class="inline-input" [(ngModel)]="editBuffer[listDef.name].external_code" placeholder="e.g. SQK-RBK114-24" />
+                  } @else {
+                    <code>{{ row.external_code ?? '—' }}</code>
+                  }
+                </td>
+              </ng-container>
+            }
+
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let row">
+                @if (editingId[listDef.name] === row.id) {
+                  <button mat-icon-button color="primary" matTooltip="Save" (click)="saveEdit(listDef.name, row.id)">
+                    <mat-icon>check</mat-icon>
+                  </button>
+                  <button mat-icon-button matTooltip="Cancel" (click)="cancelEdit(listDef.name)">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                } @else {
+                  <button mat-icon-button matTooltip="Edit" (click)="startEdit(listDef, row)">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button color="warn" matTooltip="Delete" (click)="deleteEntry(listDef.name, row)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                }
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="columnsFor(listDef)"></tr>
+            <tr mat-row *matRowDef="let row; columns: columnsFor(listDef)"></tr>
+          </table>
+
+          <div class="add-row">
+            <mat-form-field class="add-field-sm">
+              <mat-label>Code</mat-label>
+              <input matInput [(ngModel)]="newEntry[listDef.name].code" />
+            </mat-form-field>
+            <mat-form-field class="add-field-lg">
+              <mat-label>Description</mat-label>
+              <input matInput [(ngModel)]="newEntry[listDef.name].description" />
+            </mat-form-field>
+            @if (listDef.hasExternalCode) {
+              <mat-form-field class="add-field-md">
+                <mat-label>External code</mat-label>
+                <input matInput [(ngModel)]="newEntry[listDef.name].external_code" />
+              </mat-form-field>
+            }
+            <button mat-stroked-button color="primary" [disabled]="!newEntry[listDef.name].code" (click)="addEntry(listDef.name)">
+              <mat-icon>add</mat-icon> Add
+            </button>
+          </div>
+        }
+      </mat-expansion-panel>
+    }
+  </mat-accordion>
+</div>

@@ -1,0 +1,99 @@
+<div class="page-container">
+  <div class="action-bar">
+    <h1>Settings</h1>
+    <span class="spacer"></span>
+    <input
+      #settingsImportInput
+      type="file"
+      accept=".json,application/json"
+      style="display:none"
+      (change)="importSettingsFile($event)"
+    />
+    <button mat-stroked-button color="primary" [disabled]="importingSettings()" (click)="settingsImportInput.click()">
+      <mat-icon>upload_file</mat-icon> Import settings
+    </button>
+    <button mat-stroked-button color="primary" (click)="exportSettingsFile()">
+      <mat-icon>download</mat-icon> Export settings
+    </button>
+    <button mat-raised-button color="primary" [disabled]="saving()" (click)="saveAll()">
+      <mat-icon>save</mat-icon> Save all
+    </button>
+  </div>
+
+  @if (loading()) {
+    <mat-spinner diameter="40"></mat-spinner>
+  } @else {
+    <mat-card>
+      <mat-card-content>
+        <form [formGroup]="form">
+          @for (def of settingDefs(); track def.key; let last = $last) {
+            @if (def.type === 'boolean') {
+              <div style="padding:12px 0">
+                <mat-slide-toggle
+                  [checked]="form.get(def.key)?.value === '1'"
+                  (change)="form.get(def.key)?.setValue($event.checked ? '1' : '0')"
+                >{{ def.label }}</mat-slide-toggle>
+                <p class="hint-text" style="margin:4px 0 0 46px">{{ def.hint }}</p>
+              </div>
+            } @else {
+              <mat-form-field class="full-width" subscriptSizing="dynamic" style="margin-top:12px">
+                <mat-label>{{ def.label }}</mat-label>
+                @if (def.type === 'select') {
+                  <mat-select [formControlName]="def.key">
+                    @for (opt of def.options ?? []; track opt.value) {
+                      <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                    }
+                  </mat-select>
+                } @else if (def.type === 'number') {
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    [formControlName]="def.key"
+                    [placeholder]="defaultValues()[def.key] ?? ''"
+                  />
+                } @else {
+                  <input
+                    matInput
+                    [formControlName]="def.key"
+                    [type]="def.type === 'password' && !showSecrets[def.key] ? 'password' : 'text'"
+                    [placeholder]="defaultValues()[def.key] ?? ''"
+                  />
+                  @if (def.type === 'password') {
+                    <button mat-icon-button matSuffix type="button" (click)="toggleSecret(def.key)">
+                      <mat-icon>{{
+                        showSecrets[def.key] ? 'visibility_off' : 'visibility'
+                      }}</mat-icon>
+                    </button>
+                  }
+                }
+                <mat-hint>{{ def.hint }}</mat-hint>
+              </mat-form-field>
+              @if (defaultValues()[def.key] && !envKeys().has(def.key)) {
+                <div class="hint-text" style="margin:2px 0 0 2px; opacity:0.75">
+                  Not set — using default: <code>{{ defaultValues()[def.key] }}</code>
+                </div>
+              }
+              @if (envKeys().has(def.key)) {
+                <div class="env-badge">
+                  <mat-icon class="env-badge-icon">lock</mat-icon>
+                  Set via environment variable &mdash; change the env var to update
+                </div>
+              }
+              @if (fileWarnings()[def.key]) {
+                <div class="path-warning">
+                  <mat-icon class="path-warning-icon">warning</mat-icon>
+                  {{ fileWarnings()[def.key] }}
+                </div>
+              }
+            }
+            @if (!last) {
+              <mat-divider style="margin:8px 0"></mat-divider>
+            }
+          }
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+  }
+</div>

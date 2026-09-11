@@ -1,0 +1,110 @@
+<h2 mat-dialog-title>{{ isEdit ? 'Edit sample' : 'Add sample' }}</h2>
+<mat-dialog-content>
+  <form [formGroup]="form" class="sample-form">
+    <mat-form-field class="full-width">
+      <mat-label>Site</mat-label>
+      <mat-select formControlName="site_id" (selectionChange)="updateSampleCode()">
+        <mat-option [value]="null">— none —</mat-option>
+        @for (s of sites(); track s.id) {
+          <mat-option [value]="s.id">{{ s.site_code }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sample type</mat-label>
+      <mat-select formControlName="sample_type" (selectionChange)="updateSampleCode()">
+        <mat-option [value]="null">— none —</mat-option>
+        @for (lv of sampleTypes(); track lv.code) {
+          <mat-option [value]="lv.code">{{ lv.code }} — {{ lv.description }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sample code (auto-derived)</mat-label>
+      <input matInput formControlName="sample_code" />
+      <mat-hint>Auto-filled as site_ID_sample_type, e.g. TZDSBM_WW</mat-hint>
+      @if (form.get('sample_code')?.hasError('required')) {
+        <mat-error>Required</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sampling date (YYYYMMDD) *</mat-label>
+      <input matInput formControlName="sampling_date" placeholder="20240115" />
+      @if (form.get('sampling_date')?.hasError('required')) {
+        <mat-error>Required</mat-error>
+      }
+      @if (form.get('sampling_date')?.hasError('pattern')) {
+        <mat-error>Must be 8 digits in YYYYMMDD format</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Partner sample code</mat-label>
+      <input matInput formControlName="partner_sample_code" />
+    </mat-form-field>
+
+    <div style="display:flex;gap:12px">
+      <mat-form-field style="flex:1">
+        <mat-label>Depth</mat-label>
+        <input matInput formControlName="depth" />
+      </mat-form-field>
+      <mat-form-field style="flex:1">
+        <mat-label>Elevation (m)</mat-label>
+        <input matInput formControlName="elevation" />
+      </mat-form-field>
+    </div>
+
+    <mat-form-field class="full-width">
+      <mat-label>Nucleic acid concentration (ng/µl)</mat-label>
+      <input matInput formControlName="nucleic_acid_concentration" />
+    </mat-form-field>
+
+    <div style="display:flex;gap:12px">
+      <mat-form-field style="flex:1">
+        <mat-label>Extract volume (ml)</mat-label>
+        <input matInput formControlName="extract_volume" />
+      </mat-form-field>
+      <mat-form-field style="flex:1">
+        <mat-label>Elution volume (µl)</mat-label>
+        <input matInput formControlName="elution_volume" />
+      </mat-form-field>
+    </div>
+
+    <mat-form-field class="full-width">
+      <mat-label>Date extraction (YYYYMMDD)</mat-label>
+      <input matInput formControlName="date_extraction" placeholder="20240115" />
+      @if (form.get('date_extraction')?.hasError('pattern')) {
+        <mat-error>Must be 8 digits in YYYYMMDD format</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Comments (sampling)</mat-label>
+      <textarea matInput formControlName="comments_sampling" rows="2"></textarea>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Comments (extraction)</mat-label>
+      <textarea matInput formControlName="comments_extraction" rows="2"></textarea>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Comments</mat-label>
+      <textarea matInput formControlName="comments" rows="2"></textarea>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button
+    mat-raised-button
+    color="primary"
+    [disabled]="form.invalid || saving()"
+    (click)="save()"
+  >
+    {{ saving() ? 'Saving…' : 'Save' }}
+  </button>
+</mat-dialog-actions>

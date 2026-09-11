@@ -1,0 +1,376 @@
+<div class="page-container">
+  <div class="action-bar">
+    <h1>Dashboard</h1>
+    <span class="spacer"></span>
+    <mat-slide-toggle
+      [checked]="hideExcluded()"
+      (change)="hideExcluded.set($event.checked)"
+      style="margin-right:16px;font-size:0.875rem;"
+    >
+      Hide excluded
+    </mat-slide-toggle>
+    @if (enlightenUrl()) {
+      <button
+        mat-stroked-button
+        style="margin-right:12px;"
+        matTooltip="Open Enlighten in a new tab"
+        (click)="openEnlighten()"
+      >
+        <mat-icon>lightbulb</mat-icon> Open in Enlighten
+      </button>
+    }
+    <button
+      mat-stroked-button
+      class="scan-state-button"
+      (click)="scan()"
+      [disabled]="nanoporeLoading() || biomemeLoading()"
+      [matTooltip]="'Refresh now'"
+    >
+      <span class="scan-state-content">
+        <mat-icon>refresh</mat-icon>
+        <span class="scan-state-label">{{ scanState().label }}</span>
+        <mat-icon
+          class="scan-state-status-icon"
+          [class.icon-ok]="scanState().color === 'green'"
+          [class.icon-warn]="scanState().color === 'yellow'"
+          [class.icon-err]="scanState().color === 'red'"
+        >
+          {{ scanState().color === 'green' ? 'check_circle' : scanState().color === 'red' ? 'error' : 'hourglass_empty' }}
+        </mat-icon>
+      </span>
+    </button>
+  </div>
+
+  <!-- ── Nanopore section ─────────────────────────────────────────────── -->
+  <h2>Nanopore Runs</h2>
+
+  @if (nanoporeResult()) {
+    @if (!nanoporeResult()!.minknow_dir) {
+      <p class="config-warning">
+        <mat-icon class="icon-warn">warning</mat-icon>
+        MinKNOW directory is not configured.
+        <a routerLink="/settings">Go to Settings</a> to set it up.
+      </p>
+    } @else {
+      <p class="scan-meta">
+        <strong>Directory:</strong> {{ nanoporeResult()!.minknow_dir }}
+        &nbsp;|&nbsp;
+        <strong>Scanned:</strong> {{ nanoporeResult()!.scanned_at }}
+        @if (nanoporeLoading()) {
+          <mat-spinner diameter="14" style="display:inline-block;vertical-align:middle;margin-left:6px;"></mat-spinner>
+        }
+      </p>
+    }
+
+    <div class="run-list">
+      <div class="run-list-header">
+        <table class="runs-table">
+          <colgroup>
+            <col style="width:44px"><col><col style="width:72px"><col style="width:95px">
+            <col style="width:110px"><col style="width:115px"><col style="width:78px">
+            <col style="width:44px"><col style="width:44px"><col style="width:188px"><col style="width:44px"><col style="width:44px">
+          </colgroup>
+          <thead>
+            <tr>
+              <th></th><th>Run</th><th>On disk</th><th>In metadata</th>
+              <th>Barcodes ready</th><th>Status</th><th></th>
+              <th colspan="3" class="actions-group-header">Actions</th><th></th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+
+      @if (displayItems().length === 0) {
+        <p class="empty-state">No nanopore runs found.</p>
+      }
+
+      @for (item of displayItems(); track groupKey(item)) {
+        <div class="run-card"
+          [class.run-card-likely]="item.kind === 'continuation-group' && $any(item).confidence === 'likely'"
+          [class.run-card-possible]="item.kind === 'continuation-group' && $any(item).confidence === 'possible'"
+          [class.run-card-sample]="item.kind === 'sample-group'">
+          @if (item.kind !== 'single') {
+            @let ghKey = groupKey(item);
+            <div class="card-group-header"
+              [class.card-group-likely]="item.kind === 'continuation-group' && $any(item).confidence === 'likely'"
+              [class.card-group-possible]="item.kind === 'continuation-group' && $any(item).confidence === 'possible'"
+              [class.card-group-sample]="item.kind === 'sample-group'">
+              <div class="group-header-top">
+                @if (item.kind === 'continuation-group') {
+                  <mat-icon style="font-size:18px;height:18px;width:18px;vertical-align:middle">link</mat-icon>
+                  <strong>Flow cell {{ item.evidence.flow_cell_id }}</strong>
+                  <span class="conf-chip"
+                    [class.chip-likely]="item.confidence === 'likely'"
+                    [class.chip-possible]="item.confidence === 'possible'">
+                    {{ item.confidence === 'likely' ? '● Likely continuation' : '◌ Possible continuation' }}
+                  </span>
+                  <button mat-icon-button style="width:28px;height:28px;line-height:28px"
+                    [matTooltip]="groupEvidenceOpen().has(ghKey) ? 'Hide evidence' : 'Show evidence'"
+                    (click)="toggleEvidence(ghKey); $event.stopPropagation()">
+                    <mat-icon style="font-size:16px;height:16px;width:16px">info_outline</mat-icon>
+                  </button>
+                } @else {
+                  <mat-icon style="font-size:18px;height:18px;width:18px;vertical-align:middle">folder_shared</mat-icon>
+                  <strong>Sample: {{ $any(item).sampleName }}</strong>
+                  <span style="font-size:0.8rem;color:#666">({{ item.runs.length }} runs)</span>
+                }
+                @if (getItemWarnings(item).length > 0) {
+                  <span class="conf-chip chip-warning"
+                    [matTooltip]="formatWarningsForTooltip(getItemWarnings(item))">
+                    Review sample/barcode mapping
+                  </span>
+                }
+                @if (getHiddenItemWarningCount(item) > 0) {
+                  <button
+                    mat-icon-button
+                    class="warning-restore-btn"
+                    [matTooltip]="'Show dismissed warnings (' + getHiddenItemWarningCount(item) + ')'"
+                    (click)="restoreItemWarnings(item); $event.stopPropagation()"
+                  >
+                    <mat-icon>visibility</mat-icon>
+                  </button>
+                }
+              </div>
+              <app-warning-strip
+                [warnings]="getItemWarnings(item)"
+                (dismiss)="dismissItemWarning(item, $event)"
+              />
+              @if (item.kind === 'continuation-group' && groupEvidenceOpen().has(ghKey)) {
+                <div class="evidence-strip">
+                  <span>Flow cell: {{ item.evidence.flow_cell_id }}</span>
+                  <span>Kit: {{ item.evidence.kit ?? 'Unknown for one run' }}</span>
+                  <span>Gap: {{ formatGap(item.evidence.time_gap_hours) }}</span>
+                  @if (item.evidence.run_name_match) {
+                    <span>Run name: {{ item.evidence!.run_name_match }}</span>
+                  }
+                  <span style="color:#666">Confidence: {{ item.confidence === 'likely' ? 'Likely — all checks passed' : 'Possible — kit data missing for one run' }}</span>
+                </div>
+              }
+              <div class="merge-row">
+                <span style="font-size:0.85rem;color:#555">Merge these runs?</span>
+                <app-merge-decision-buttons
+                  [decision]="item.mergeDecision"
+                  (decisionChange)="setGroupMerge(item.runs, $event)">
+                </app-merge-decision-buttons>
+              </div>
+            </div>
+          }
+          <table class="runs-table">
+            <colgroup>
+              <col style="width:44px"><col><col style="width:72px"><col style="width:95px">
+              <col style="width:110px"><col style="width:115px"><col style="width:78px">
+              <col style="width:44px"><col style="width:44px"><col style="width:188px"><col style="width:44px">
+            </colgroup>
+            <tbody>
+              @for (run of getRuns(item); track run.run_accession) {
+                <tr class="run-row clickable-row" (click)="toggleNanopore(run)">
+                  <td>
+                    @if (run.barcodes.length > 0) {
+                      <button mat-icon-button
+                        [matTooltip]="expandedNanopore() === run ? 'Hide barcodes' : 'Show barcodes'"
+                        (click)="toggleNanopore(run); $event.stopPropagation()">
+                        <mat-icon>{{ expandedNanopore() === run ? 'expand_less' : 'expand_more' }}</mat-icon>
+                      </button>
+                    }
+                  </td>
+                  <td>
+                    <strong>{{ run.run_name ?? run.run_accession }}</strong>
+                    @if (getVisibleRunWarnings(run).length > 0) {
+                      <span class="run-warning-inline" [matTooltip]="formatWarningsForTooltip(getVisibleRunWarnings(run))">
+                        <mat-icon class="icon-warn">warning_amber</mat-icon>
+                        Review metadata
+                      </span>
+                    }
+                    @if (getHiddenRunWarningCount(run) > 0) {
+                      <button
+                        mat-icon-button
+                        class="warning-restore-btn warning-restore-inline"
+                        [matTooltip]="'Show dismissed warnings (' + getHiddenRunWarningCount(run) + ')'"
+                        (click)="restoreRunWarnings(run); $event.stopPropagation()"
+                      >
+                        <mat-icon>visibility</mat-icon>
+                      </button>
+                    }
+                    @if (run.sample_name) {
+                      <br /><span style="font-size:0.82em;color:var(--mat-sys-on-surface-variant,#555)">{{ run.sample_name }}</span>
+                    }
+                    @if (run.run_name) {
+                      <br /><span style="font-size:0.75em;color:var(--mat-sys-on-surface-variant,#888)">{{ run.run_accession }}</span>
+                    }
+                  </td>
+                  <td>
+                    <mat-icon
+                      [class]="run.on_disk ? 'icon-ok' : 'icon-err'"
+                      [matTooltip]="run.on_disk ? 'Found on disk' : 'Not found on disk'">
+                      {{ run.on_disk ? 'check_circle' : 'cancel' }}
+                    </mat-icon>
+                  </td>
+                  <td>
+                    <mat-icon
+                      [class]="run.in_metadata ? 'icon-ok' : 'icon-grey'"
+                      [matTooltip]="run.in_metadata ? 'Registered in database' : 'Not registered'">
+                      {{ run.in_metadata ? 'check_circle' : 'help_outline' }}
+                    </mat-icon>
+                  </td>
+                  <td>{{ readyBarcodes(run) }} / {{ run.barcodes.length }}</td>
+                  <td><app-run-status-chip [status]="run.status"></app-run-status-chip></td>
+                  <td>
+                    @if (run.output_on_disk) {
+                      <mat-icon class="icon-ok" matTooltip="Output found on disk">check_circle</mat-icon>
+                    } @else if (run.last_pipeline_run_status === 'running' || run.last_pipeline_run_status === 'queued') {
+                      <mat-icon style="color:#1565c0" matTooltip="Pipeline run: {{ run.last_pipeline_run_status }}">hourglass_empty</mat-icon>
+                    } @else if (run.last_pipeline_run_status === 'failed') {
+                      <mat-icon class="icon-err" matTooltip="Pipeline run failed (no output found)">error</mat-icon>
+                    } @else if (run.last_pipeline_run_status === 'cancelled') {
+                      <mat-icon class="icon-grey" matTooltip="Pipeline run cancelled">cancel</mat-icon>
+                    }
+                  </td>
+                  <td class="icon-cell" (click)="$event.stopPropagation()">
+                    <button mat-icon-button
+                      [matTooltip]="run.is_excluded ? 'Un-exclude run' : 'Exclude run'"
+                      (click)="toggleExcludeRun(run)">
+                      <mat-icon [style.color]="run.is_excluded ? '#e65100' : '#bdbdbd'">block</mat-icon>
+                    </button>
+                  </td>
+                  <td class="icon-cell" (click)="$event.stopPropagation()">
+                    @if (pendingGroups().length > 0) {
+                      <button mat-icon-button
+                        matTooltip="Link this run to an existing pending group"
+                        (click)="linkToGroup(run)">
+                        <mat-icon style="color:#7b1fa2">link</mat-icon>
+                      </button>
+                    }
+                  </td>
+                  <td (click)="$event.stopPropagation()">
+                    <button mat-stroked-button color="primary"
+                      [disabled]="!run.on_disk && !run.artic_on_disk"
+                      [matTooltip]="(run.on_disk || run.artic_on_disk) ? 'Open launch wizard' : 'Run not found on disk'"
+                      style="white-space: nowrap"
+                      (click)="openLaunchWizard(run)">
+                      <mat-icon>rocket_launch</mat-icon>
+                      {{ run.barcodes.some(b => b.status === 'not_in_metadata') ? 'Register & launch' : 'Launch' }}
+                    </button>
+                  </td>
+                  <td class="icon-cell" (click)="$event.stopPropagation()">
+                    @if (run.last_pipeline_run_id || run.confidence_report_targets.length > 0) {
+                      <button mat-icon-button matTooltip="Run actions" [matMenuTriggerFor]="runActionsMenu">
+                        <mat-icon>more_vert</mat-icon>
+                      </button>
+                      <mat-menu #runActionsMenu="matMenu" class="run-actions-menu">
+                        @if (run.output_on_disk && run.last_pipeline_run_type === 'taxprofiler' && run.last_pipeline_run_id) {
+                          <button mat-menu-item
+                            [disabled]="postprocessingRunId() === run.last_pipeline_run_id"
+                            (click)="triggerPostprocess(run)">
+                            <mat-icon [style.color]="postprocessingRunId() === run.last_pipeline_run_id ? '#9e9e9e' : run.postprocessing_fresh ? '#2e7d32' : '#1565c0'">analytics</mat-icon>
+                            <span class="menu-item-content">
+                              <span class="menu-item-label">{{ run.postprocessing_fresh ? 'Re-run post-processing' : 'Run post-processing' }}</span>
+                              <span class="menu-item-desc">Export Kraken2 results to Enlighten data files{{ run.postprocessing_fresh ? ' (up to date)' : '' }}</span>
+                            </span>
+                          </button>
+                        }
+                        @if (run.pipeline_runs.length) {
+                          <button mat-menu-item (click)="openManifest(run)">
+                            <mat-icon>description</mat-icon>
+                            <span class="menu-item-content">
+                              <span class="menu-item-label">
+                                Run manifest@if (run.pipeline_runs.length > 1) { ({{ run.pipeline_runs.length }}) }
+                              </span>
+                              <span class="menu-item-desc">View sample accessions, barcodes and metadata</span>
+                            </span>
+                          </button>
+                        }
+                        @if (run.last_pipeline_run_extract_target || run.confidence_report_targets.length > 0) {
+                          <button mat-menu-item
+                            [disabled]="run.confidence_report_targets.length === 0"
+                            (click)="openConfidenceReport(run)">
+                            <mat-icon>biotech</mat-icon>
+                            <span class="menu-item-content">
+                              <span class="menu-item-label">
+                                Confidence report@if (run.confidence_report_targets.length > 1) { ({{ run.confidence_report_targets.length }}) }
+                              </span>
+                              <span class="menu-item-desc">{{ run.confidence_report_targets.length > 0 ? 'View read extraction results against reference genome' : 'No report found — extraction may not have completed' }}</span>
+                            </span>
+                          </button>
+                        }
+                      </mat-menu>
+                    }
+                  </td>
+                </tr>
+                @if (expandedNanopore() === run && run.barcodes.length > 0) {
+                  <tr class="detail-row">
+                    <td colspan="11">
+                      <div class="barcode-detail">
+
+                        <app-warning-strip
+                          [warnings]="getVisibleRunWarnings(run)"
+                          [hiddenCount]="getHiddenRunWarningCount(run)"
+                          (dismiss)="dismissRunWarning(run, $event)"
+                          (restore)="restoreRunWarnings(run)"
+                        />
+
+                        @if (run.related_run_accessions.length && !groupMemberSet().has(run.run_accession)) {
+                <div
+                  style="margin:0 0 8px;font-size:0.85rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"
+                >
+                          <span><strong>Related runs:</strong> {{ run.related_run_accessions.join(' · ') }}</span>
+                          <span style="color:#888;">Merge FASTQ:</span>
+                          <app-merge-decision-buttons
+                            [decision]="run.auto_merge ?? null"
+                            (decisionChange)="onRunMergeChange(run, $event)">
+                          </app-merge-decision-buttons>
+                </div>
+              }
+                        <table class="barcode-table">
+                          <thead>
+                            <tr>
+                              <th>Barcode</th><th>Sample ID</th><th>Date</th>
+                              <th>Protocol</th><th>Kit</th><th>FASTQ</th>
+                              <th>Status</th><th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (bc of run.barcodes; track bc.barcode) {
+                              @if (!hideExcluded() || !bc.is_excluded) {
+                                <tr>
+                                  <td><code>{{ bc.barcode }}</code></td>
+                                  <td>{{ bc.minknow_sample_id ?? '—' }}</td>
+                                  <td>{{ bc.sampling_date ?? '—' }}</td>
+                                  <td>{{ bc.protocol_id ?? '—' }}</td>
+                                  <td>{{ bc.sequencing_kit_id ?? '—' }}</td>
+                                  <td>{{ bc.fastq_count }}</td>
+                                  <td><app-run-status-chip [status]="bc.status"></app-run-status-chip></td>
+                                  <td>
+                                    <button mat-icon-button
+                                      [matTooltip]="bc.is_excluded ? 'Un-exclude barcode' : 'Exclude barcode'"
+                                      (click)="toggleExcludeBarcode(run, bc); $event.stopPropagation()">
+                                      <mat-icon [style.color]="bc.is_excluded ? '#e65100' : '#bdbdbd'">block</mat-icon>
+                                    </button>
+                                  </td>
+                                </tr>
+                              }
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  } @else if (nanoporeLoading()) {
+    <mat-spinner diameter="32"></mat-spinner>
+  }
+
+  <!-- ── Biomeme section ──────────────────────────────────────────────── -->
+  <app-biomeme-folder-table
+    [result]="biomemeResult()"
+    [loading]="biomemeLoading()"
+    [hideExcluded]="hideExcluded()"
+    (launchWizardRequested)="openBiomemeLaunchWizard($event)"
+    (excludeToggled)="toggleExcludeBiomemeFolder($event)"
+  ></app-biomeme-folder-table>
+</div>

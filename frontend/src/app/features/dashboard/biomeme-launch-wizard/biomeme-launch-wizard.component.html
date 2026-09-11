@@ -1,0 +1,166 @@
+<h2 mat-dialog-title>
+  <mat-icon style="vertical-align:middle;margin-right:8px;">rocket_launch</mat-icon>
+  {{ title }}
+</h2>
+
+<mat-dialog-content>
+  <!-- Loading -->
+  @if (step() === 'loading') {
+    <div style="display:flex;align-items:center;gap:16px;padding:16px 0;">
+      <mat-spinner diameter="28"></mat-spinner>
+      <span>Loading samples…</span>
+    </div>
+  }
+
+  <!-- Error -->
+  @if (step() === 'error') {
+    <p class="step-error">
+      <mat-icon>error_outline</mat-icon>
+      {{ errorMsg() }}
+    </p>
+  }
+
+  <!-- Register -->
+  @if (step() === 'register') {
+    <p style="margin:0 0 16px;color:#555;font-size:0.9rem;">
+      The following files are not yet registered in the database.
+      Assign a sample to each one, or skip to launch with already-registered runs.
+    </p>
+    <table class="register-table">
+      <thead>
+        <tr>
+          <th>Run file</th>
+          <th>Assign sample</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entry of registerEntries(); track entry.run_name) {
+          <tr>
+            <td><code>{{ entry.run_name }}</code></td>
+            <td>
+              <mat-select
+                placeholder="Pick a sample…"
+                [ngModel]="entry.selectedSampleId"
+                (ngModelChange)="setEntry(entry.run_name, $event)"
+                style="min-width:280px;">
+                <mat-option [value]="null">— none —</mat-option>
+                @for (s of samples(); track s.id) {
+                  <mat-option [value]="s.id">{{ sampleLabel(s) }}</mat-option>
+                }
+              </mat-select>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <!-- Launch -->
+  @if (step() === 'launch') {
+    <ul class="summary-list">
+      <li><strong>Files on disk:</strong> {{ totalFilesOnDisk }}</li>
+      <li>
+        <strong>Registered:</strong>
+        {{ totalRegisteredAfter }} / {{ totalFilesOnDisk }}
+        @if (newlyRegistered() > 0) {
+          <span class="badge-new">+{{ newlyRegistered() }} just registered</span>
+        }
+      </li>
+    </ul>
+
+    @if (totalFilesOnDisk - totalRegisteredAfter > 0) {
+      <div class="warn-banner">
+        <mat-icon>warning_amber</mat-icon>
+        <span>
+          {{ totalFilesOnDisk - totalRegisteredAfter }} file(s) are unregistered
+          and will be skipped by the pipeline.
+        </span>
+      </div>
+    }
+  }
+
+  <!-- Edit metadata -->
+  @if (step() === 'edit') {
+    <p style="margin:0 0 16px;color:#555;font-size:0.9rem;">
+      Change the sample assignment for registered runs.
+    </p>
+    <table class="register-table">
+      <thead>
+        <tr>
+          <th>Run file</th>
+          <th>Sample</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entry of editEntries(); track entry.run_id) {
+          <tr>
+            <td><code>{{ entry.run_name }}</code></td>
+            <td>
+              <mat-select
+                placeholder="Pick a sample…"
+                [ngModel]="entry.selectedSampleId"
+                (ngModelChange)="setEditEntry(entry.run_id, $event)"
+                style="min-width:280px;">
+                <mat-option [value]="null">— none —</mat-option>
+                @for (s of samples(); track s.id) {
+                  <mat-option [value]="s.id">{{ sampleLabel(s) }}</mat-option>
+                }
+              </mat-select>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  @if (step() === 'register') {
+    <button mat-button (click)="cancel()" [disabled]="submitting()">Cancel</button>
+    <button mat-stroked-button (click)="skipToLaunch()" [disabled]="submitting()">
+      Skip →
+    </button>
+    <button mat-raised-button color="primary" (click)="registerAndContinue()" [disabled]="submitting()">
+      @if (submitting()) {
+        <mat-spinner diameter="18" style="display:inline-block;vertical-align:middle;margin-right:6px;"></mat-spinner>
+      }
+      @if (selectedCount > 0) {
+        Register ({{ selectedCount }}) &amp; Continue →
+      } @else {
+        Continue →
+      }
+    </button>
+  }
+  @if (step() === 'launch') {
+    <button mat-button (click)="cancel()">Cancel</button>
+    @if (totalRegisteredAfter > 0) {
+      <button mat-stroked-button (click)="goToEdit()">
+        <mat-icon style="vertical-align:middle;font-size:18px;">edit</mat-icon>
+        Edit metadata
+      </button>
+    }
+    <button mat-raised-button color="accent" (click)="launch()" [disabled]="launching()">
+      @if (launching()) {
+        <mat-spinner diameter="18" style="display:inline-block;vertical-align:middle;margin-right:6px;"></mat-spinner>
+        Launching…
+      } @else {
+        <ng-container>
+          <mat-icon style="vertical-align:middle">play_arrow</mat-icon>
+          Launch pipeline
+        </ng-container>
+      }
+    </button>
+  }
+  @if (step() === 'edit') {
+    <button mat-button (click)="step.set('launch')" [disabled]="savingEdits()">← Back</button>
+    <button mat-raised-button color="primary" (click)="saveEdits()" [disabled]="savingEdits()">
+      @if (savingEdits()) {
+        <mat-spinner diameter="18" style="display:inline-block;vertical-align:middle;margin-right:6px;"></mat-spinner>
+      }
+      Save changes
+    </button>
+  }
+  @if (step() === 'error') {
+    <button mat-button (click)="cancel()">Close</button>
+  }
+</mat-dialog-actions>

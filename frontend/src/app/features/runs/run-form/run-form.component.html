@@ -1,0 +1,209 @@
+<h2 mat-dialog-title>{{ isEdit ? 'Edit run' : 'Add run' }}</h2>
+<mat-dialog-content>
+  <form [formGroup]="form" class="run-form">
+
+    @if (isAddToGroup) {
+      <div style="padding:8px 12px;background:#e8f5e9;border-radius:4px;font-size:0.85rem;color:#2e7d32;margin-bottom:8px;">
+        <strong>Adding to group:</strong>
+        {{ groupName }}
+      </div>
+    } @else if (isEdit) {
+      <mat-form-field class="full-width">
+        <mat-label>Group *</mat-label>
+        <mat-select formControlName="accession_id">
+          @for (a of accessions(); track a.id) {
+            <mat-option [value]="a.id">{{ a.run_accession ?? a.label }}</mat-option>
+          }
+        </mat-select>
+        <mat-hint>Move this barcode to a different group</mat-hint>
+      </mat-form-field>
+    } @else {
+      <mat-button-toggle-group
+        [value]="runAccessionMode()"
+        (change)="toggleMode($event.value)"
+        style="margin-bottom:8px;width:100%">
+        <mat-button-toggle value="known" style="flex:1">Run accession known</mat-button-toggle>
+        <mat-button-toggle value="pending" style="flex:1">Pre-run (label only)</mat-button-toggle>
+      </mat-button-toggle-group>
+      @if (runAccessionMode() === 'known') {
+        <mat-form-field class="full-width">
+          <mat-label>Run accession *</mat-label>
+          <input
+            matInput
+            formControlName="run_accession"
+            (blur)="onRunAccessionBlur()"
+          />
+          @if (runInfoLoading()) {
+            <span matSuffix><mat-spinner diameter="16" style="display:inline-block;margin-right:4px;"></mat-spinner></span>
+          }
+          @if (form.get('run_accession')?.hasError('required')) {
+            <mat-error>Required</mat-error>
+          }
+        </mat-form-field>
+      } @else {
+        <mat-form-field class="full-width">
+          <mat-label>Planned run label *</mat-label>
+          <input
+            matInput
+            formControlName="label"
+            placeholder="e.g. Kenya-May-2026"
+          />
+          @if (form.get('label')?.hasError('required')) {
+            <mat-error>Required</mat-error>
+          }
+        </mat-form-field>
+      }
+    }
+    @if (runInfo()) {
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#e3f2fd;border-radius:4px;font-size:0.85rem;color:#1565c0;margin-bottom:4px;">
+        <mat-icon style="font-size:18px;width:18px;height:18px;">info</mat-icon>
+        <span>
+          MinKNOW data found.
+          @if (runInfo()!.run_name) { Run: <strong>{{ runInfo()!.run_name }}</strong>. }
+          @if (runInfo()!.sequencing_kit_raw) { Kit: <code>{{ runInfo()!.sequencing_kit_raw }}</code>. }
+        </span>
+      </div>
+    }
+
+    <mat-form-field class="full-width">
+      <mat-label>Sample</mat-label>
+      <mat-select
+        formControlName="sample_id"
+        (selectionChange)="onSampleSelected($event.value)"
+      >
+        <mat-option [value]="null">— none —</mat-option>
+        @for (s of samples(); track s.id) {
+          <mat-option [value]="s.id">{{ s.sample_code }} ({{ s.sampling_date }})</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sampling date</mat-label>
+      <input matInput formControlName="sampling_date" readonly />
+      <mat-hint>Fetched from sample</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Barcode *</mat-label>
+      <input
+        matInput
+        formControlName="barcode"
+        (input)="updateDerived(); checkBarcodeNoise()"
+        placeholder="barcode01"
+      />
+      @if (form.get('barcode')?.hasError('required')) {
+        <mat-error>Required</mat-error>
+      }
+      @if (barcodeIsNoise()) {
+        <mat-hint style="color:#e65100;">
+          <mat-icon style="font-size:13px;vertical-align:middle;height:13px;width:13px;">warning</mat-icon>
+          This barcode had &lt;1&thinsp;000 reads — possible noise.
+        </mat-hint>
+      }
+    </mat-form-field>
+
+    @if (runInfo() && runInfo()!.barcodes.length > 0) {
+      <details style="margin-bottom:4px;">
+        <summary style="cursor:pointer;font-size:0.82rem;color:#555;">
+          Show barcode read counts ({{ runInfo()!.barcodes.length }} on disk)
+        </summary>
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin-top:6px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:2px 8px;color:#666;border-bottom:1px solid #e0e0e0;">Barcode</th>
+              <th style="text-align:right;padding:2px 8px;color:#666;border-bottom:1px solid #e0e0e0;">Reads</th>
+              <th style="text-align:center;padding:2px 8px;color:#666;border-bottom:1px solid #e0e0e0;">Files</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (bc of runInfo()!.barcodes; track bc.barcode) {
+              <tr [style.color]="bc.is_used ? 'inherit' : '#e65100'" [style.opacity]="bc.is_used ? 1 : 0.7">
+                <td style="padding:2px 8px;"><code>{{ bc.barcode }}</code></td>
+                <td style="padding:2px 8px;text-align:right;">
+                  @if (!bc.is_used) {
+                    <mat-icon style="font-size:12px;vertical-align:middle;height:12px;width:12px;">warning</mat-icon>
+                  }
+                  {{ bc.read_count | number }}
+                </td>
+                <td style="padding:2px 8px;text-align:center;">{{ bc.fastq_file_count }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </details>
+    }
+
+    <mat-form-field class="full-width">
+      <mat-label>Protocol ID</mat-label>
+      <mat-select formControlName="protocol_id" (selectionChange)="updateDerived()">
+        <mat-option [value]="null">— none —</mat-option>
+        @for (lv of protocols(); track lv.code) {
+          <mat-option [value]="lv.code">{{ lv.code }} — {{ lv.description }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sequencing kit ID</mat-label>
+      <mat-select formControlName="sequencing_kit_id" (selectionChange)="updateDerived()">
+        <mat-option [value]="null">— none —</mat-option>
+        @for (lv of kits(); track lv.code) {
+          <mat-option [value]="lv.code">{{ lv.code }} — {{ lv.description }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sample ID (auto-derived)</mat-label>
+      <input matInput formControlName="minknow_sample_id" readonly />
+      <mat-hint
+        >{{ '{' }}sample_code{{ '}' }}_{{ '{' }}protocol_id{{ '}' }}_{{
+          '{'
+        }}sequencing_kit_id{{ '}' }}</mat-hint
+      >
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Alias (auto-derived)</mat-label>
+      <input matInput formControlName="alias" readonly />
+      <mat-hint>{{ '{' }}sample_code{{ '}' }}_{{ '{' }}barcode{{ '}' }}</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Type (mpox)</mat-label>
+      <mat-select formControlName="type">
+        <mat-option [value]="null">— none —</mat-option>
+        @for (lv of mpoxTypes(); track lv.code) {
+          <mat-option [value]="lv.code">{{ lv.code }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Run name (MinKNOW experiment)</mat-label>
+      <input matInput formControlName="runName" />
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sample name (MinKNOW sample)</mat-label>
+      <input matInput formControlName="sampleName" />
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Comments</mat-label>
+      <textarea matInput formControlName="comments" rows="2"></textarea>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button
+    mat-raised-button
+    color="primary"
+    [disabled]="form.invalid || saving()"
+    (click)="save()"
+  >
+    {{ saving() ? 'Saving…' : 'Save' }}
+  </button>
+</mat-dialog-actions>

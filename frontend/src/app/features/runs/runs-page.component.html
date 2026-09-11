@@ -1,0 +1,99 @@
+<div class="page-container">
+  <div class="action-bar">
+    <h1>Nanopore</h1>
+    <span class="spacer"></span>
+    <button mat-raised-button color="primary" (click)="openForm()">
+      <mat-icon>add</mat-icon> Add group
+    </button>
+  </div>
+
+  @if (loading()) {
+    <mat-spinner diameter="40"></mat-spinner>
+  } @else if (groups().length === 0) {
+    <p style="margin-top:16px;color:#666;">No groups yet. Click "Add group" to get started.</p>
+  } @else {
+    @for (g of groups(); track g.accession_id) {
+      <div class="run-card mat-elevation-z2">
+        <!-- Card header -->
+        <div class="card-header" (click)="toggleCollapse(g.accession_id)" style="cursor:pointer">
+          <mat-icon class="collapse-chevron" [class.rotated]="collapsedGroups().has(g.accession_id)">expand_more</mat-icon>
+          <div class="header-title">
+            @if (g.kind === 'linked') {
+              <mat-icon class="header-icon">folder</mat-icon>
+              @if (g.runName || g.sampleName) {
+                <div class="title-stack">
+                  <span class="run-display-name">{{ g.runName }}{{ g.runName && g.sampleName ? ' / ' : '' }}{{ g.sampleName }}</span>
+                  <span class="run-accession-small">{{ g.run_accession }}</span>
+                </div>
+              } @else {
+                <span class="run-accession">{{ g.run_accession }}</span>
+              }
+            } @else {
+              <mat-icon class="header-icon" style="color:#f57c00">schedule</mat-icon>
+              <span class="run-label">{{ g.label }}</span>
+              <mat-chip class="pending-chip">Pending</mat-chip>
+            }
+          </div>
+          <div class="header-meta">
+            @if (g.sequencing_kit_id) { <span>{{ g.sequencing_kit_id }}</span> }
+            @if (g.protocol_id) { <span>{{ g.protocol_id }}</span> }
+            <span style="color:#888">{{ g.runs.length }} barcode{{ g.runs.length === 1 ? '' : 's' }}</span>
+          </div>
+          <button mat-icon-button matTooltip="Add barcode to this group" (click)="openForm(undefined, g); $event.stopPropagation()">
+            <mat-icon>add</mat-icon>
+          </button>
+          @if (g.runs.length === 0) {
+            <button mat-icon-button matTooltip="Delete empty group" color="warn" (click)="deleteGroup(g); $event.stopPropagation()">
+              <mat-icon>delete</mat-icon>
+            </button>
+          }
+        </div>
+
+        <!-- Link panel for pending cards -->
+        @if (!collapsedGroups().has(g.accession_id) && g.kind === 'pending') {
+          <div class="link-panel">
+            <mat-form-field appearance="outline" class="link-input" subscriptSizing="dynamic">
+              <mat-label>Link run accession</mat-label>
+              <input matInput [(ngModel)]="g.linkInput" placeholder="e.g. 20260518_0800_MN00000_…" />
+            </mat-form-field>
+            <button
+              mat-stroked-button
+              color="primary"
+              [disabled]="!g.linkInput?.trim() || linkingIds().has(g.accession_id)"
+              (click)="linkGroup(g)"
+            >
+              @if (linkingIds().has(g.accession_id)) { <mat-spinner diameter="16" style="display:inline-block;margin-right:4px;"></mat-spinner> }
+              Link
+            </button>
+          </div>
+        }
+
+        <!-- Barcode rows -->
+        @if (!collapsedGroups().has(g.accession_id)) {
+        <div class="barcode-list">
+          @for (r of g.runs; track r.id) {
+            <div class="barcode-row">
+              <span class="bc-code">{{ r.barcode }}</span>
+              <span class="bc-sample">{{ r.sample_code ?? '—' }}</span>
+              @if (r.sampling_date) { <span class="bc-date">{{ r.sampling_date }}</span> }
+              <span class="bc-actions">
+                <button mat-icon-button matTooltip="Edit" (click)="openForm(r)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button
+                  mat-icon-button
+                  matTooltip="Delete"
+                  color="warn"
+                  (click)="deleteRun(r)"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </span>
+            </div>
+          }
+        </div>
+        } <!-- end collapse -->
+      </div>
+    }
+  }
+</div>

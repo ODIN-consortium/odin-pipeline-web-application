@@ -1,0 +1,59 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+}
+
+// Barcode metadata selects in the launch wizard — taller options with dividers
+.bc-select-panel .mat-mdc-option {
+  height: auto !important;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eeeeee;
+  line-height: 1.4;
+}
+.bc-select-panel .mat-mdc-option:last-child {
+  border-bottom: none;
+}
+
+.page-container {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.mat-mdc-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+}
+
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.chip-ready {
+  background-color: #e8f5e9 !important;
+  color: #2e7d32 !important;
+}
+
+.chip-warning {
+  background-color: #fff3e0 !important;
+  color: #e65100 !important;
+}
+
+.chip-error {
+  background-color: #ffebee !important;
+  color: #c62828 !important;
+}

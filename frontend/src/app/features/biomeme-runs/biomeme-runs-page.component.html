@@ -1,0 +1,63 @@
+<div class="page-container">
+  <div class="action-bar">
+    <h1>Biomeme runs</h1>
+    <span class="spacer"></span>
+    <button mat-raised-button color="primary" (click)="crud.openForm()">
+      <mat-icon>add</mat-icon> Add run
+    </button>
+  </div>
+
+  @if (crud.loading()) {
+    <mat-spinner diameter="40"></mat-spinner>
+  } @else {
+    <table mat-table [dataSource]="crud.dataSource" class="full-width mat-elevation-z2">
+      <ng-container matColumnDef="biomeme_run_name">
+        <th mat-header-cell *matHeaderCellDef>Run name</th>
+        <td mat-cell *matCellDef="let r">{{ r.biomeme_run_name }}</td>
+      </ng-container>
+      <ng-container matColumnDef="sample_code">
+        <th mat-header-cell *matHeaderCellDef>Sample code</th>
+        <td mat-cell *matCellDef="let r">{{ r.sample_code }}</td>
+      </ng-container>
+      <ng-container matColumnDef="sampling_date">
+        <th mat-header-cell *matHeaderCellDef>Date</th>
+        <td mat-cell *matCellDef="let r">{{ r.sampling_date }}</td>
+      </ng-container>
+      <ng-container matColumnDef="biomeme_sample_id">
+        <th mat-header-cell *matHeaderCellDef>Position</th>
+        <td mat-cell *matCellDef="let r">{{ r.biomeme_sample_id }}</td>
+      </ng-container>
+      <ng-container matColumnDef="dilution_factor">
+        <th mat-header-cell *matHeaderCellDef>Dilution</th>
+        <td mat-cell *matCellDef="let r">{{ r.dilution_factor }}</td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let r">
+          <button mat-icon-button matTooltip="Edit" (click)="crud.openForm(r); $event.stopPropagation()">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button matTooltip="Delete" color="warn"
+            (click)="crud.remove(r); $event.stopPropagation()">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns" (click)="crud.openForm(row)"></tr>
+    </table>
+
+    @if (crud.isEmpty()) {
+      <p class="empty-state">{{ crud.emptyMessage() }}</p>
+    }
+  }
+</div>
+
+<style>
+  .page-container { padding: 16px; max-width: 960px; }
+  .action-bar { display: flex; align-items: center; margin-bottom: 16px; gap: 8px; }
+  .spacer { flex: 1; }
+  .full-width { width: 100%; }
+  .empty-state { margin-top: 16px; color: #666; }
+</style>

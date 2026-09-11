@@ -1,0 +1,61 @@
+<h2 mat-dialog-title>{{ isEdit ? 'Edit Biomeme run' : 'Add Biomeme run' }}</h2>
+<mat-dialog-content>
+  <form [formGroup]="form" class="biomeme-form">
+    <mat-form-field class="full-width">
+      <mat-label>Biomeme run name *</mat-label>
+      <input matInput formControlName="biomeme_run_name" placeholder="2025-09-03-08215857" />
+      @if (form.get('biomeme_run_name')?.hasError('required')) {
+        <mat-error>Required</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sample</mat-label>
+      <mat-select
+        formControlName="sample_id"
+        (selectionChange)="onSampleSelected($event.value)"
+      >
+        <mat-option [value]="null">— none —</mat-option>
+        @for (s of samples(); track s.id) {
+          <mat-option [value]="s.id"
+            >{{ s.sample_code }} ({{ s.sampling_date }})</mat-option
+          >
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Sampling date</mat-label>
+      <input matInput formControlName="sampling_date" readonly />
+      <mat-hint>Fetched from sample</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Biomeme sample ID</mat-label>
+      <input matInput formControlName="biomeme_sample_id" placeholder="1,2,NTC" />
+      <mat-hint>Position(s) in the instrument run</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Dilution factor</mat-label>
+      <input matInput type="number" formControlName="dilution_factor" placeholder="0.1" />
+      <mat-hint>Leave blank if no dilution</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field class="full-width">
+      <mat-label>Comments</mat-label>
+      <textarea matInput formControlName="comments" rows="2"></textarea>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button
+    mat-raised-button
+    color="primary"
+    [disabled]="form.invalid || saving()"
+    (click)="save()"
+  >
+    {{ saving() ? 'Saving…' : 'Save' }}
+  </button>
+</mat-dialog-actions>

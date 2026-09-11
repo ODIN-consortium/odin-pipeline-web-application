@@ -1,0 +1,9 @@
+odin-app-data/
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+.env
+.venv/
+backend/.venv-test/
+frontend/.angular/

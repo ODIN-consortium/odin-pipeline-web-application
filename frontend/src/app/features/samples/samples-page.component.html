@@ -1,0 +1,68 @@
+<div class="page-container">
+  <div class="action-bar">
+    <h1>Samples</h1>
+    <span class="spacer"></span>
+    <button mat-raised-button color="primary" (click)="crud.openForm()">
+      <mat-icon>add</mat-icon> Add sample
+    </button>
+  </div>
+
+  @if (crud.loading()) {
+    <mat-spinner diameter="40"></mat-spinner>
+  } @else {
+    <table mat-table matSort matSortActive="sample_code" matSortDirection="asc" matSortDisableClear
+           [dataSource]="crud.dataSource" class="full-width mat-elevation-z2">
+      <ng-container matColumnDef="sample_code">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Sample code</th>
+        <td mat-cell *matCellDef="let s">{{ s.sample_code }}</td>
+      </ng-container>
+      <ng-container matColumnDef="sample_type">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Type</th>
+        <td mat-cell *matCellDef="let s">{{ s.sample_type }}</td>
+      </ng-container>
+      <ng-container matColumnDef="sampling_date">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Date</th>
+        <td mat-cell *matCellDef="let s">{{ s.sampling_date }}</td>
+      </ng-container>
+      <ng-container matColumnDef="partner_sample_code">
+        <th mat-header-cell *matHeaderCellDef>Partner code</th>
+        <td mat-cell *matCellDef="let s">{{ s.partner_sample_code }}</td>
+      </ng-container>
+      <ng-container matColumnDef="depth">
+        <th mat-header-cell *matHeaderCellDef>Depth</th>
+        <td mat-cell *matCellDef="let s">{{ s.depth }}</td>
+      </ng-container>
+      <ng-container matColumnDef="nucleic_acid_concentration">
+        <th mat-header-cell *matHeaderCellDef>NA conc.</th>
+        <td mat-cell *matCellDef="let s">{{ s.nucleic_acid_concentration }}</td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let s">
+          <button
+            mat-icon-button
+            matTooltip="Edit"
+            (click)="crud.openForm(s); $event.stopPropagation()"
+          >
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            matTooltip="Delete"
+            color="warn"
+            (click)="crud.remove(s); $event.stopPropagation()"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns" (click)="crud.openForm(row)"></tr>
+    </table>
+
+    @if (crud.isEmpty()) {
+      <app-empty-state [message]="crud.emptyMessage()"></app-empty-state>
+    }
+  }
+</div>

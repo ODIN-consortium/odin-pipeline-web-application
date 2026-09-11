@@ -1,0 +1,115 @@
+FROM python:3.12-slim
+
+# Base packages from the Debian repos (deb.debian.org is served over HTTP, so
+# these succeed even behind an SSL-inspection proxy).  Java 21 is required for
+# Nextflow; curl for downloads; ca-certificates for the trust-store update below.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-21-jre-headless \
+    curl \
+    ca-certificates \
+    ca-certificates-java \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install corporate CA certs if present (needed behind SSL-inspection proxies).
+# This MUST run before any HTTPS fetch (docker.com, GitHub, Nextflow plugins)
+# so those downloads trust the intercepting proxy.  The ca/ directory is always
+# present in the repo (via .gitkeep) but cert files are gitignored and only
+# added locally. When no certs are present the directory is empty (no-op).
+COPY ca/ /tmp/ca-certs/
+RUN find /tmp/ca-certs -maxdepth 1 \( -name '*.crt' -o -name '*.cer' -o -name '*.pem' \) | \
+    while read f; do \
+        name=$(basename "$f"); name="${name%.*}"; \
+        cp "$f" "/usr/local/share/ca-certificates/${name}.crt"; \
+    done \
+    && update-ca-certificates \
+    && rm -rf /tmp/ca-certs \
+    && python -c "import pip._vendor.certifi as c, pathlib; pathlib.Path(c.where()).open('ab').write(pathlib.Path('/etc/ssl/certs/ca-certificates.crt').read_bytes())"
+
+# Docker CLI client (required for Nextflow DooD — the daemon comes from the host
+# socket mount, but the 'docker' binary must exist here) plus minimap2/samtools.
+# Fetches the signing key and package index from download.docker.com over HTTPS,
+# which now trusts the corporate CA installed above.
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg \
+       -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+       https://download.docker.com/linux/debian \
+       $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+       > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli minimap2 samtools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Nextflow (pinned version)
+ARG NEXTFLOW_VERSION=25.04.2
+RUN curl -fsSL \
+    "https://github.com/nextflow-io/nextflow/releases/download/v${NEXTFLOW_VERSION}/nextflow" \
+    -o /usr/local/bin/nextflow \
+    && chmod +x /usr/local/bin/nextflow
+
+# Pre-install Nextflow plugins so the container doesn't need internet at pipeline
+# runtime.  NXF_HOME is set to a fixed path so the plugin cache lands in the image
+# layer rather than in a user home directory that may vary.
+# Update the plugin versions here when upgrading taxprofiler or other pipelines.
+ENV NXF_HOME=/opt/nextflow
+# Pre-download the Nextflow fat-jar with retry so that SSL-inspection proxies that
+# truncate large transfers (curl error 18) don't abort the build.  Nextflow will
+# find the jar at $NXF_HOME/framework/<version>/ and skip its own download.
+# Download the Nextflow fat-jar with range-request resume support so that
+# SSL-inspection proxies that truncate large transfers don't abort the build.
+# curl -C - resumes from the partial file on each retry, same as wget --continue.
+# curl is already installed above so no extra package is needed.
+RUN mkdir -p /opt/nextflow/framework/${NEXTFLOW_VERSION} \
+    && url="https://www.nextflow.io/releases/v${NEXTFLOW_VERSION}/nextflow-${NEXTFLOW_VERSION}-one.jar" \
+    && dest="/opt/nextflow/framework/${NEXTFLOW_VERSION}/nextflow-${NEXTFLOW_VERSION}-one.jar" \
+    && for i in 1 2 3 4 5; do \
+           curl -fsSL -C - -o "$dest" "$url" && break || sleep 3; \
+       done \
+    && [ -s "$dest" ]
+RUN nextflow plugin install nf-schema@2.5.1
+
+# Bundle the nf-core/taxprofiler workflow source (a few MB of Nextflow scripts)
+# so that first launch needs no GitHub access.  It cannot be RUN from inside
+# this container: Nextflow bind-mounts pipeline paths (bin/) into sibling task
+# containers, which resolve paths on the HOST (DooD) — so the entrypoint seeds
+# this checkout to $ODIN_PIPELINE_ROOT/nf/ at container start, and
+# command_builder prefers that host copy over pulling from GitHub.
+# Update TAXPROFILER_REVISION together with the compose default when upgrading.
+ARG TAXPROFILER_REVISION=1.2.6
+ENV ODIN_BUNDLED_TAXPROFILER=/opt/bundled/taxprofiler-${TAXPROFILER_REVISION}
+RUN mkdir -p /opt/bundled \
+    && curl -fsSL "https://github.com/nf-core/taxprofiler/archive/refs/tags/${TAXPROFILER_REVISION}.tar.gz" \
+       | tar -xz -C /opt/bundled \
+    && [ -f "${ODIN_BUNDLED_TAXPROFILER}/main.nf" ]
+
+WORKDIR /app
+
+# Bake the default odin.config into the image so the pipeline works out of the
+# box without a bind mount.  Users can override it at runtime by mounting a
+# different file at /app/config/odin.config (the docker-compose volume
+# ./pipeline/config/odin.config:/app/config/odin.config:ro shadows this default).
+COPY pipeline/config/odin.config /app/config/odin.config
+
+# Bake the wgetrc for corporate CA cert so containers don't need it as a mount.
+# Only takes effect when ODIN_CA_CERT is set (odin.config mounts it conditionally).
+RUN mkdir -p /app/ca && printf 'ca-certificate = /odin-ca.crt\n' > /app/ca/odin-wgetrc
+
+COPY pyproject.toml .
+COPY backend/ ./backend/
+RUN pip install --no-cache-dir hatchling \
+    && pip install --no-build-isolation --no-cache-dir .
+
+ENV ODIN_DATA_DIR=/app/data
+
+# Entrypoint script installs a runtime CA cert (if provided via ODIN_CA_CERT
+# or auto-discovered in $ODIN_PIPELINE_ROOT/ca/) into the system and Java
+# trust stores before uvicorn starts.  This makes the image work for any
+# organization's SSL-inspection CA, not just the one baked in at build time.
+COPY backend/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+EXPOSE 8080
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8080"]

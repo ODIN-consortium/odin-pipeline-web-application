@@ -1,0 +1,70 @@
+/* Rules shared between the launch wizard and the components extracted from its template.
+   Angular scopes each stylesheet to its component, so markup moved into a child loses the
+   parent's rules silently (the D10 lesson) — anything both sides use lives here, referenced
+   from every styleUrls that needs it. */
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #444;
+  margin: 20px 0 10px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 4px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.step-hint {
+  color: #555;
+  margin-bottom: 16px;
+}
+
+.step-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c62828;
+  background: #ffebee;
+  padding: 12px;
+  border-radius: 4px;
+}
+
+.opt-code {
+  display: block;
+  white-space: nowrap;
+}
+
+/* .barcode-form-table is the register step's editable table (the extracted component);
+   .barcode-table is the wizard's read-only summary on the launch step. Same look. */
+.barcode-form-table,
+.barcode-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.barcode-form-table th,
+.barcode-table th {
+  text-align: left;
+  padding: 4px 8px;
+  font-weight: 600;
+  color: #666;
+  border-bottom: 1px solid #e0e0e0;
+  white-space: nowrap;
+}
+.barcode-form-table td,
+.barcode-table td {
+  padding: 2px 4px;
+  vertical-align: middle;
+}

@@ -1,0 +1,495 @@
+<h2 mat-dialog-title>
+  <mat-icon style="vertical-align:middle;margin-right:8px;">rocket_launch</mat-icon>
+  Launch pipeline — {{ data.run_accession }}
+</h2>
+
+<mat-dialog-content>
+  <!-- Loading -->
+  @if (step() === 'loading') {
+    <div style="display:flex;align-items:center;gap:16px;padding:16px 0;">
+      <mat-spinner diameter="28"></mat-spinner>
+      <span>Checking readiness…</span>
+    </div>
+  }
+
+  <!-- Error -->
+  @if (step() === 'error') {
+    <p class="step-error">
+      <mat-icon>error_outline</mat-icon>
+      {{ errorMsg() }}
+    </p>
+  }
+
+  <!-- Launch: summary always visible, pipeline buttons launch directly -->
+  @if (step() === 'launch') {
+  @if (squirrelOnlyMode()) {
+    <div class="info-banner" style="margin-top:4px;margin-bottom:8px;">
+      <mat-icon>info</mat-icon>
+      <span>No FASTQ data found for this run. Only Squirrel (standalone phylogenetics) can be launched.</span>
+    </div>
+  }
+  @if (readiness()) {
+    @if (readiness()!.action === 'launch_with_warn') {
+      <div class="warn-banner">
+        <mat-icon>warning</mat-icon>
+        <span>
+          @if (unregisteredBarcodes.length > 0) {
+            <strong>{{ unregisteredBarcodes.join(', ') }}</strong>
+            {{ unregisteredBarcodes.length > 1 ? 'have' : 'has' }} no metadata registered.
+            The pipeline can still run, but
+            {{ unregisteredBarcodes.length > 1 ? 'these barcodes' : 'this barcode' }}
+            will have no sample behind
+            {{ unregisteredBarcodes.length > 1 ? 'them' : 'it' }} in the results. Use
+            <em>Edit metadata</em> to complete
+            {{ unregisteredBarcodes.length > 1 ? 'them' : 'it' }} first.
+          } @else {
+            Some barcodes have no FASTQ files. The pipeline may not process all barcodes correctly.
+          }
+        </span>
+      </div>
+    }
+
+    <app-warning-strip
+      variant="banner"
+      [warnings]="getVisibleMetadataWarnings()"
+      [hiddenCount]="getHiddenMetadataWarningCount()"
+      (dismiss)="dismissMetadataWarning($event)"
+      (restore)="restoreMetadataWarnings()"
+    />
+
+    <!-- Merge toggle (shown whenever there are related runs) -->
+    @if (readiness()!.related_run_accessions.length > 0) {
+      <div
+        style="margin-bottom:12px;padding:12px;border-radius:4px;transition:background 0.2s;"
+        [style.background]="autoMerge() ? '#e3f2fd' : '#f5f5f5'"
+        [style.border]="autoMerge() ? '1px solid #90caf9' : '1px solid transparent'"
+      >
+        <p style="font-size:0.85rem;margin:0 0 8px;"
+           [style.color]="autoMerge() ? '#1565c0' : '#555'">
+          @if (autoMerge()) {
+            <mat-icon style="font-size:1rem;height:1rem;width:1rem;vertical-align:middle;margin-right:4px;">call_merge</mat-icon>
+            <strong>Will merge FASTQ with:</strong>
+          } @else {
+            <strong>Related runs:</strong>
+          }
+          {{ readiness()!.related_run_accessions.join(' · ') }}
+        </p>
+        @if (readiness()!.continuation_run_accessions.length > 0) {
+          @let ev = readiness()!.continuation_evidence;
+          @let conf = readiness()!.continuation_confidence;
+          <div
+            class="info-banner"
+            [class.info-banner-possible]="conf === 'possible'"
+            style="margin-bottom:8px;"
+          >
+            <mat-icon>{{ conf === 'likely' ? 'link' : 'help_outline' }}</mat-icon>
+            <span>
+              @if (conf === 'likely') {
+                Runs share the same flow cell
+                @if (ev?.flow_cell_id) {
+                  (<strong>{{ ev!.flow_cell_id }}</strong>)
+                }
+                and sequencing kit — merging is recommended.
+              } @else {
+                Runs share the same flow cell
+                @if (ev?.flow_cell_id) {
+                  (<strong>{{ ev!.flow_cell_id }}</strong>)
+                }
+                — sequencing kit could not be confirmed, verify before merging.
+              }
+            </span>
+          </div>
+        }
+        @if (readiness()!.merge_decision_stale) {
+          <div class="warn-banner" style="margin-bottom:8px;">
+            <mat-icon>warning_amber</mat-icon>
+            <span>Related run set has changed — please review the merge setting.</span>
+          </div>
+        }
+        <mat-slide-toggle [checked]="autoMerge()" (change)="autoMerge.set($event.checked)">
+          Merge FASTQ across runs before processing
+        </mat-slide-toggle>
+      </div>
+    }
+
+    <!-- Summary -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+      <ul class="summary-list" style="margin:0;">
+        <li><strong>Run:</strong> {{ readiness()!.run_accession }}</li>
+        @if (readiness()!.existing_protocol_id) {
+          <li><strong>Protocol:</strong> {{ readiness()!.existing_protocol_id }}</li>
+        }
+        @if (readiness()!.existing_sequencing_kit_id) {
+          <li><strong>Kit:</strong> {{ readiness()!.existing_sequencing_kit_id }}</li>
+        }
+        @if (readiness()!.related_run_accessions.length > 0) {
+          <li>
+            <strong>Merge FASTQ:</strong>
+            {{
+              autoMerge()
+                ? 'Yes — ' + readiness()!.related_run_accessions.join(' · ')
+                : 'No (run independently)'
+            }}
+          </li>
+        }
+      </ul>
+      <button mat-button style="font-size:0.8rem;flex-shrink:0;" (click)="goBackToRegister()">
+        <mat-icon>edit</mat-icon>
+        Edit metadata
+      </button>
+    </div>
+
+    <table class="barcode-table">
+      <thead>
+        <tr>
+          <th>Barcode</th>
+          <th>Sample code</th>
+          <th>Sampling date</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (b of readiness()!.barcodes; track b.barcode) {
+          @if (b.status === 'ready') {
+            <tr>
+              <td><code>{{ b.barcode }}</code></td>
+              <td>{{ b.sample_code ?? '—' }}</td>
+              <td>{{ b.sampling_date ?? '—' }}</td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+
+    <div style="margin-top:12px;">
+      <mat-slide-toggle [checked]="resumeRun()" (change)="resumeRun.set($event.checked)">
+        Resume previous run (reuse cached tasks)
+      </mat-slide-toggle>
+      <p style="font-size:0.82rem;color:#777;margin:4px 0 0 46px;">
+        @if (resumeRun()) {
+          Nextflow will skip tasks whose inputs haven't changed since the last run.
+        } @else {
+          Nextflow will run all tasks from scratch.
+        }
+      </p>
+    </div>
+
+    @if (readiness()!.related_run_accessions.length > 0 && readiness()!.merge_decision_needed && !readiness()!.merge_decision_made) {
+      <p class="quiet-merge-note">
+        <mat-icon>info</mat-icon>
+        Related runs are detected. Launch is allowed without merging; this run will process independently unless you enable merge.
+      </p>
+    }
+  } <!-- end @if (readiness()) -->
+
+    @if (launchError()) {
+      <p class="step-error" style="margin-top:12px;">
+        <mat-icon>error_outline</mat-icon>{{ launchError() }}
+      </p>
+    }
+
+    <!-- Per-pipeline tabs — parameters and launch button for each pipeline -->
+    <mat-tab-group animationDuration="0ms" style="margin-top:16px;">
+
+      <!-- ── Taxprofiler ── -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon style="margin-right:6px;font-size:18px;width:18px;height:18px;">travel_explore</mat-icon>
+          Taxprofiler
+        </ng-template>
+        <div style="padding:16px 0 8px;">
+          <mat-slide-toggle [checked]="saveReads()" (change)="saveReads.set($event.checked)">
+            Save Kraken2 classified reads
+          </mat-slide-toggle>
+          <p style="font-size:0.82rem;color:#777;margin:4px 0 8px 46px;">
+            Writes classified and unclassified FASTQ reads to disk. Required for downstream
+            read extraction. Adds significant I/O time and disk usage — leave off unless needed.
+          </p>
+
+          @if (saveReads()) {
+            <div style="margin:8px 0 16px;padding:12px;background:#f5f5f5;border-radius:4px;border-left:3px solid #90caf9;">
+              <p style="font-size:0.85rem;font-weight:500;margin:0 0 4px;">Extract reads for target organism</p>
+              <p style="font-size:0.82rem;color:#777;margin:0 0 12px;">
+                Aligns classified reads against a reference genome and extracts mapped reads.
+              </p>
+              <mat-form-field style="width:100%;">
+                <mat-label>Target organism</mat-label>
+                <mat-select [formControl]="extractTargetCtrl">
+                  @for (t of extractTargets(); track t.label) {
+                    <mat-option [value]="t.label">{{ t.display_name }} ({{ t.ref_accession }})</mat-option>
+                  }
+                  <mat-option value="custom">Custom…</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              @if (extractTargetCtrl.value === 'custom') {
+                <mat-form-field style="width:100%;margin-top:4px;">
+                  <mat-label>Reference accession *</mat-label>
+                  <input matInput [formControl]="extractRefAccessionCtrl" placeholder="e.g. NC_063383.1">
+                  <mat-hint>NCBI accession for the reference genome to align against</mat-hint>
+                </mat-form-field>
+                <mat-form-field style="width:100%;margin-top:12px;">
+                  <mat-label>Taxon label (optional)</mat-label>
+                  <input matInput [formControl]="extractTaxonLabelCtrl" placeholder="e.g. Mpox Clade IIb">
+                  <mat-hint>Human-readable name shown in the extraction report</mat-hint>
+                </mat-form-field>
+              }
+            </div>
+          }
+
+          <div style="display:flex;justify-content:flex-end;">
+            <button
+              mat-flat-button color="primary"
+              [disabled]="isPipelineDisabled('taxprofiler')"
+              [matTooltip]="pipelineDisabledTooltip('taxprofiler')"
+              (click)="launchWithPipeline('taxprofiler')"
+            >
+              @if (launching() && selectedPipelineType() === 'taxprofiler') {
+                <mat-spinner diameter="18"></mat-spinner>
+              } @else {
+                <mat-icon>travel_explore</mat-icon>
+              }
+              Launch Taxprofiler
+            </button>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- ── WF Metagenomics AMR ── -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon style="margin-right:6px;font-size:18px;width:18px;height:18px;">biotech</mat-icon>
+          WF AMR
+        </ng-template>
+        <div style="padding:16px 0 8px;">
+          <p style="font-size:0.85rem;color:#555;margin:0 0 16px;">
+            Antimicrobial resistance profiling using epi2me-labs/wf-metagenomics.
+          </p>
+          <div style="display:flex;justify-content:flex-end;">
+            <button
+              mat-flat-button color="primary"
+              [disabled]="isPipelineDisabled('wf_metagenomics_amr')"
+              [matTooltip]="pipelineDisabledTooltip('wf_metagenomics_amr')"
+              (click)="launchWithPipeline('wf_metagenomics_amr')"
+            >
+              @if (launching() && selectedPipelineType() === 'wf_metagenomics_amr') {
+                <mat-spinner diameter="18"></mat-spinner>
+              } @else {
+                <mat-icon>biotech</mat-icon>
+              }
+              Launch WF Metagenomics AMR
+            </button>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- ── WF Metagenomics SSU ── -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon style="margin-right:6px;font-size:18px;width:18px;height:18px;">science</mat-icon>
+          WF SSU
+        </ng-template>
+        <div style="padding:16px 0 8px;">
+          <p style="font-size:0.85rem;color:#555;margin:0 0 16px;">
+            SSU rRNA taxonomy profiling using epi2me-labs/wf-metagenomics.
+          </p>
+          <div style="display:flex;justify-content:flex-end;">
+            <button
+              mat-flat-button color="primary"
+              [disabled]="isPipelineDisabled('wf_metagenomics_ssu')"
+              [matTooltip]="pipelineDisabledTooltip('wf_metagenomics_ssu')"
+              (click)="launchWithPipeline('wf_metagenomics_ssu')"
+            >
+              @if (launching() && selectedPipelineType() === 'wf_metagenomics_ssu') {
+                <mat-spinner diameter="18"></mat-spinner>
+              } @else {
+                <mat-icon>science</mat-icon>
+              }
+              Launch WF Metagenomics SSU
+            </button>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- ── Mpox ── -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon style="margin-right:6px;font-size:18px;width:18px;height:18px;">coronavirus</mat-icon>
+          Mpox
+        </ng-template>
+        <div style="padding:16px 0 8px;">
+          @if (!data.on_disk) {
+            <div class="info-banner" style="margin-bottom:12px;">
+              <mat-icon>info</mat-icon>
+              <span>No FASTQ data found for this run. Mpox pipeline is unavailable.</span>
+            </div>
+          }
+          <div class="field-grid" style="margin-bottom:16px;">
+            <mat-form-field>
+              <mat-label>Clade *</mat-label>
+              <mat-select [formControl]="mpoxCladeCtrl">
+                @for (opt of mpoxClades(); track opt) {
+                  <mat-option [value]="opt">{{ opt }}</mat-option>
+                }
+              </mat-select>
+              @if (mpoxCladeCtrl.hasError('required')) {
+                <mat-error>Required</mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Scheme version *</mat-label>
+              <mat-select [formControl]="mpoxSchemeCtrl">
+                @for (opt of mpoxSchemes(); track opt) {
+                  <mat-option [value]="opt">{{ opt }}</mat-option>
+                }
+              </mat-select>
+              @if (mpoxSchemeCtrl.hasError('required')) {
+                <mat-error>Required</mat-error>
+              }
+            </mat-form-field>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+            <button
+              mat-flat-button color="primary"
+              [disabled]="isPipelineDisabled('mpox')"
+              [matTooltip]="pipelineDisabledTooltip('mpox')"
+              (click)="launchWithPipeline('mpox')"
+            >
+              @if (launching() && selectedPipelineType() === 'mpox') {
+                <mat-spinner diameter="18"></mat-spinner>
+              } @else {
+                <mat-icon>coronavirus</mat-icon>
+              }
+              Launch Mpox (ARTIC + Squirrel)
+            </button>
+          </div>
+
+          <mat-divider style="margin-bottom:16px;"></mat-divider>
+
+          <!-- Squirrel standalone — disabled when artic output not yet on disk -->
+          <div [style.opacity]="data.artic_on_disk ? '1' : '0.45'">
+            <p style="font-size:0.85rem;font-weight:500;margin:0 0 4px;display:flex;align-items:center;gap:6px;">
+              <mat-icon style="font-size:18px;width:18px;height:18px;">account_tree</mat-icon>
+              Squirrel only
+            </p>
+            <p style="font-size:0.82rem;color:#777;margin:0 0 12px;">
+              @if (data.artic_on_disk) {
+                Run phylogenetic analysis on existing ARTIC consensus output without re-running the full pipeline.
+              } @else {
+                Requires Mpox ARTIC consensus output on disk — run the full pipeline above first.
+              }
+            </p>
+            <div style="display:flex;justify-content:flex-end;">
+              <button
+                mat-stroked-button color="primary"
+                [disabled]="isPipelineDisabled('squirrel')"
+                [matTooltip]="pipelineDisabledTooltip('squirrel')"
+                (click)="launchWithPipeline('squirrel')"
+              >
+                @if (launching() && selectedPipelineType() === 'squirrel') {
+                  <mat-spinner diameter="18"></mat-spinner>
+                } @else {
+                  <mat-icon>account_tree</mat-icon>
+                }
+                Launch Squirrel
+              </button>
+            </div>
+          </div>
+        </div>
+      </mat-tab>
+
+    </mat-tab-group>
+
+  } <!-- end @if (step() === 'launch') -->
+
+  <!-- Register & launch form -->
+  @if (step() === 'register' && readiness()) {
+    <p class="step-hint">
+      This run is not yet fully in the metadata. Fill in the required fields and all barcodes
+      found on disk will be registered automatically.
+    </p>
+
+    <form [formGroup]="form" class="wizard-form">
+      <!-- ── Site section ───────────────────────────────────────────── -->
+      <app-site-register-form
+        [form]="form"
+        [saving]="savingSite()"
+        [(expanded)]="newSiteExpanded"
+        (save)="saveSite()"
+      />
+
+      <!-- ── Run-level sequencing metadata ────────────────────────── -->
+      <h3 class="section-title"><mat-icon>biotech</mat-icon> Sequencing run</h3>
+
+      <div class="field-grid">
+        <mat-form-field>
+          <mat-label>Protocol <span style="color:#c62828">*</span></mat-label>
+          <mat-select formControlName="protocol_id">
+            <mat-option [value]="null">—</mat-option>
+            @for (lv of allProtocolIds(); track lv.code) {
+              <mat-option [value]="lv.code"><span class="opt-code">{{ lv.code }}{{ lv.description ? ' —' : '' }}</span>{{ lv.description ?? '' }}</mat-option>
+            }
+          </mat-select>
+          @if (form.get('protocol_id')?.invalid && form.get('protocol_id')?.touched) {
+            <mat-error>Required</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Sequencing kit <span style="color:#c62828">*</span></mat-label>
+          <mat-select formControlName="sequencing_kit_id">
+            <mat-option [value]="null">—</mat-option>
+            @for (lv of allKitIds(); track lv.code) {
+              <mat-option [value]="lv.code"><span class="opt-code">{{ lv.code }}{{ lv.description ? ' —' : '' }}</span>{{ lv.description ?? '' }}</mat-option>
+            }
+          </mat-select>
+          @if (readiness()?.sequencing_kit_raw && !readiness()?.existing_sequencing_kit_id) {
+            <mat-hint>Detected: {{ readiness()!.sequencing_kit_raw }}</mat-hint>
+          }
+          @if (form.get('sequencing_kit_id')?.invalid && form.get('sequencing_kit_id')?.touched) {
+            <mat-error>Required</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <!-- ── Per-barcode metadata ────────────────────────────────────── -->
+      <app-barcode-metadata-table
+        [form]="form"
+        [sites]="sites()"
+        [sampleTypes]="allSampleTypes()"
+        [mpoxTypes]="allMpoxTypes()"
+        [noiseCount]="noiseCount()"
+      />
+    </form>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Cancel</button>
+
+  @if (step() === 'register') {
+    <button
+      mat-stroked-button
+      [disabled]="submitting() || !canSaveOnly()"
+      (click)="saveAndClose()"
+      matTooltip="Save progress and close without launching the pipeline"
+    >
+      @if (submitting()) {
+        <mat-spinner diameter="18" style="display:inline-block"></mat-spinner>
+      } @else {
+        <mat-icon>save</mat-icon>
+      }
+      {{ saveButtonLabel }}
+    </button>
+    <button
+      mat-raised-button
+      color="primary"
+      [disabled]="submitting() || form.invalid"
+      (click)="register()"
+    >
+      @if (submitting()) {
+        <mat-spinner diameter="18" style="display:inline-block"></mat-spinner>
+      }
+      Register &amp; continue
+    </button>
+  }
+
+</mat-dialog-actions>
