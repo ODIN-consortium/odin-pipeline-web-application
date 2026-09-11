@@ -1,0 +1,184 @@
+<div [formGroup]="form()">
+  <h3 class="section-title"><mat-icon>science</mat-icon> Barcodes &amp; metadata</h3>
+  <p class="step-hint" style="margin-bottom:8px;">
+    Fill in site, sample type, and sampling date for each barcode. A barcode is only
+    registered and included in the pipeline when all three required fields (*) are set.
+    @if (startedButIncompleteBarcodes.length > 0) {
+      <strong class="will-skip">
+        {{ startedButIncompleteBarcodes.join(', ') }}
+        {{ startedButIncompleteBarcodes.length > 1 ? 'are' : 'is' }} not complete and will be
+        skipped.
+      </strong>
+    } @else {
+      Barcodes without all three fields will be skipped.
+    }<br>
+    Use the
+    <mat-icon style="font-size:14px;vertical-align:middle;">arrow_downward</mat-icon>
+    button to copy a value from the row above.
+  </p>
+
+  @if (noiseCount() > 0) {
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+      <mat-slide-toggle
+        [checked]="!noiseBarcodesHidden()"
+        (change)="noiseBarcodesHidden.set(!$event.checked)"
+      >
+        Show noise barcodes ({{ noiseCount() }})
+      </mat-slide-toggle>
+      <span style="font-size:0.8rem;color:#9e9e9e;">
+        Barcodes with &lt;{{ NOISE_THRESHOLD | number }} reads are likely sequencing noise.
+      </span>
+    </div>
+  }
+
+  <div class="barcode-table-wrapper">
+    <table class="barcode-form-table">
+      <thead>
+        <tr>
+          <th>Barcode</th>
+          <th>Reads</th>
+          <th>Site ID <span style="color:#c62828">*</span></th>
+          <th>Sample type <span style="color:#c62828">*</span></th>
+          <th>Sampling date <span style="color:#c62828">*</span></th>
+          <th>Type (mpox)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody [formArrayName]="'barcodes'">
+        @for (row of barcodesArray.controls; track $index; let i = $index) {
+          @if (!noiseBarcodesHidden() || !(row.get('read_count')?.value > 0 && row.get('read_count')?.value < NOISE_THRESHOLD)) {
+          <tr [formGroupName]="i">
+            <td>
+              <code>{{ row.get('barcode')?.value }}</code>
+            </td>
+
+            <!-- Read count -->
+            <td class="reads-cell">
+              @if (row.get('read_count')?.value > 0 && row.get('read_count')?.value < NOISE_THRESHOLD) {
+                <span class="noise-reads" [matTooltip]="row.get('read_count')?.value + ' reads — possible noise'">
+                  <mat-icon style="font-size:14px;vertical-align:middle;height:14px;width:14px;">warning</mat-icon>
+                  <s>{{ row.get('read_count')?.value | number }}</s>
+                </span>
+              } @else if (row.get('read_count')?.value > 0) {
+                {{ row.get('read_count')?.value | number }}
+              } @else {
+                <span style="color:#bdbdbd;">—</span>
+              }
+            </td>
+            <td>
+              <div class="cell-with-copy">
+                <mat-form-field class="bc-field">
+                  <mat-select formControlName="site_id" panelClass="bc-select-panel">
+                    <mat-option [value]="null" disabled>— select —</mat-option>
+                    @for (s of sites(); track s.id) {
+                      <mat-option [value]="s.id">{{ s.site_code }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                @if (i > 0) {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="copy-btn"
+                    matTooltip="Copy from row above"
+                    (click)="copyFromAbove(i, 'site_id')"
+                  ><mat-icon>arrow_downward</mat-icon></button>
+                } @else {
+                  <span class="copy-spacer"></span>
+                }
+              </div>
+            </td>
+
+            <!-- Sample type override -->
+            <td>
+              <div class="cell-with-copy">
+                <mat-form-field class="bc-field">
+                  <mat-select formControlName="sample_type" panelClass="bc-select-panel">
+                    <mat-option [value]="null" disabled>— select —</mat-option>
+                    @for (lv of sampleTypes(); track lv.code) {
+                      <mat-option [value]="lv.code"><span class="opt-code">{{ lv.code }} —</span>{{ lv.description }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                @if (i > 0) {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="copy-btn"
+                    matTooltip="Copy from row above"
+                    (click)="copyFromAbove(i, 'sample_type')"
+                  ><mat-icon>arrow_downward</mat-icon></button>
+                } @else {
+                  <span class="copy-spacer"></span>
+                }
+              </div>
+            </td>
+
+            <!-- Sampling date -->
+            <td>
+              <div class="cell-with-copy">
+                <mat-form-field class="date-field">
+                  <input matInput formControlName="sampling_date" placeholder="20240601" />
+                  @if (row.get('sampling_date')?.hasError('pattern')) {
+                    <mat-error>YYYYMMDD</mat-error>
+                  }
+                </mat-form-field>
+                @if (i > 0) {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="copy-btn"
+                    matTooltip="Copy from row above"
+                    (click)="copyFromAbove(i, 'sampling_date')"
+                  ><mat-icon>arrow_downward</mat-icon></button>
+                } @else {
+                  <span class="copy-spacer"></span>
+                }
+              </div>
+            </td>
+
+            <!-- Mpox type -->
+            <td>
+              <div class="cell-with-copy">
+                <mat-form-field class="bc-field">
+                  <mat-select formControlName="type" panelClass="bc-select-panel">
+                    <mat-option [value]="null">— none —</mat-option>
+                    @for (lv of mpoxTypes(); track lv.code) {
+                      <mat-option [value]="lv.code">{{ lv.code }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                @if (i > 0) {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="copy-btn"
+                    matTooltip="Copy from row above"
+                    (click)="copyFromAbove(i, 'type')"
+                  ><mat-icon>arrow_downward</mat-icon></button>
+                } @else {
+                  <span class="copy-spacer"></span>
+                }
+              </div>
+            </td>
+
+            <td>
+              @if (rowIsComplete(row)) {
+                <mat-icon class="icon-ok" matTooltip="Ready to register">check_circle</mat-icon>
+              } @else {
+                <mat-icon style="color:#bdbdbd;" matTooltip="Needs site, sample type, and date">radio_button_unchecked</mat-icon>
+              }
+            </td>
+          </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (barcodesArray.hasError('atLeastOneComplete')) {
+    <p class="step-error" style="margin-top:8px;">
+      <mat-icon>error</mat-icon>
+      At least one barcode must have a site, sample type, and date before saving.
+    </p>
+  }
+</div>

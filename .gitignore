@@ -1,0 +1,21 @@
+# Corporate CA certificates — added locally, never committed
+ca/*.crt
+ca/*.cer
+ca/*.pem
+.env
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/node_modules/
+odin-app-data/
+/logs/
+**/.angular
+.nextflow.log
+.nextflow.*
+*.xlsx
+**/.nextflow
+**/work
+execution_trace*
+.coverage
+frontend/dist
+.pytest_cache/

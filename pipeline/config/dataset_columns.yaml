@@ -1,0 +1,303 @@
+# What each column of the Enlighten datasets means.
+#
+# The post-processors write these texts into every feather they produce, as Arrow field
+# metadata on the column (postprocess_common.write_feather); Enlighten shows them as the
+# column's (i) tooltip, and `pyarrow.ipc.open_file(path).schema` shows them from the command
+# line. Edit the wording here — never in the Python code.
+#
+# Layout
+#   shared:    blocks of columns that several datasets take from the same source
+#   datasets:  one entry per dataset the writers produce (taxprofiler, amr, amr_summary,
+#              biomeme). `include` pulls in shared blocks; `columns` lists the dataset's own.
+#   A column's value is its description text, or a mapping with `description` and further
+#   items (`unit`, …) — each item becomes one line of the tooltip.
+#
+# The contract (backend/tests/test_dataset_columns.py): each dataset's writer emits EXACTLY
+# the columns described here. When a pipeline changes and a column appears or disappears,
+# the suite fails until this file says what the column is (or stops describing what is gone).
+#
+# Deployments may overlay their own wording — the same layout, only the entries to change —
+# in $ODIN_PIPELINE_ROOT/config/dataset_columns.yaml or a file named in
+# ODIN_DATASET_COLUMNS_FILE (docs/configuration.md, "Column descriptions").
+#
+# Wording decisions are recorded with the analyses that rely on them.
+
+version: 1
+
+shared:
+
+  # Sample and site, from the ODIN database (samples / sites tables).
+  sample:
+    sample_code: >-
+      Sample code: site code + sample type (e.g. DVDVWP_DW); empty on Biomeme control rows.
+      One sample may appear in several sequencing runs and barcodes.
+    sample_type: >-
+      DW drinking water, SW surface water, RW river water, WW wastewater (WI/WM/WO
+      inlet/mid/outlet), SG_P/SG_G sewage, SO soil, OW other water, CL clinical, CTRL control.
+    sampling_date: Date the sample was collected (YYYYMMDD in the metadata).
+    country: Country of the sampling site.
+
+  # The nanopore run's metadata row (db/queries.get_metadata_rows_from_db), stamped onto
+  # every row of the taxprofiler, SSU and AMR datasets.
+  nanopore_run:
+    run_accession: >-
+      Sequencing run accession(s). Several, joined with ',', when restarts of one flow cell
+      were merged before classification.
+    barcode: >-
+      Nanopore barcode of the sample in this run. For a row built from a pooled replicate
+      group, the member barcodes joined with '-' (e.g. barcode07-barcode08-barcode01).
+    protocol_id: Wet-lab protocol (P1, P2, P5); the analysis uses P2 only.
+    sequencing_kit_id: "Library kit: RB_GEN rapid barcoding (metagenomic), RB_AMP amplicon."
+    type: >-
+      Barcode role in an Mpox run (test_sample, positive_control, negative_control,
+      no_template_control); empty for other pipelines.
+    replicate: >-
+      Text. 'pooled' when the row was built from the concatenated reads of a replicate
+      group (barcode then lists the members); a number (1, 2, 3 …) when the row is one
+      barcode of a group that was screened on its own, which only an AMR run set to
+      'per barcode' does; empty when the barcode is the sample's only library in the run.
+      Taxonomy datasets never carry a number: every numbered group is pooled.
+    replicate_type: >-
+      Why the group exists: collection (separate filters), extraction (separate extracts)
+      or technical (one extract sequenced again); ';'-joined on a pooled row whose members
+      differ. Empty whenever replicate is.
+    runName: Run name given in MinKNOW.
+    sampleName: Sample set name given in MinKNOW.
+    alias: Sample code + barcode (or + the pooled barcodes), as in the sample sheet.
+    sample_id: >-
+      MinKNOW's sample identifier: sample code + protocol + sequencing kit
+      (e.g. DVDVWP_DW_P1_RB_AMP). Two library preps of one sample differ here.
+    sample_key: >-
+      One sample, one library prep: sample_id + sampling date. Use this to count
+      samples — a sample code alone identifies a site and sample type, and recurs
+      on every visit to that site.
+    sampling_site_id: Site code from the sites table.
+    lon:
+      description: Longitude of the sampling site.
+      unit: degrees east
+    lat:
+      description: Latitude of the sampling site.
+      unit: degrees north
+    incomplete_data: True when the run's metadata was incomplete at export time.
+
+datasets:
+
+  # <Country>_taxprofiler.feather, <Country>_taxprofiler_target_group.feather and the SSU
+  # equivalents — backend/app/parsers/kraken_postprocessor.py (Kraken2 report rows).
+  taxprofiler:
+    include: [sample, nanopore_run]
+    columns:
+      Pct. of Frags: >-
+        Kraken2 report column 1: percentage of the file's reads in the clade rooted at this
+        taxon.
+      No of Frags root: >-
+        Clade reads: reads assigned to this taxon or any taxon below it (Kraken2 report
+        column 2). The value to use for detection and RPM of one taxon. Do not sum it over
+        the rows labelled with a pathogen group: the label covers the whole clade, so a
+        species row already contains its strains and serovars and the sum counts reads
+        several times (Salmonella about threefold). A group's total is the sum of
+        'No of Frags' over its labelled rows, or of this column over the group's listed
+        TaxIDs only.
+      No of Frags: >-
+        Direct reads: reads assigned exactly to this taxon and not to a child (Kraken2 report
+        column 3). Summed over the rows labelled with a pathogen group, it is the group's
+        read total.
+      classified_reads: >-
+        Reads Kraken2 classified in this file: the root row's clade count, repeated on every
+        row of the file. The denominator of reads per million — divide by it once per file,
+        not once per row. 0 for a file in which nothing was classified; such a file has no
+        rate, not a rate of zero.
+      total_reads: >-
+        Every read in this file: classified plus unclassified, repeated on every row of the
+        file.
+      Rank code: >-
+        Kraken2 rank: U unclassified, R root, D domain, K kingdom, P phylum, C class, O order,
+        F family, G genus, S species. A digit suffix (S1, S2, G1) is a node between two
+        standard ranks.
+      NCBI tax ID: NCBI Taxonomy identifier of this row's taxon (stored as text).
+      Scientific name: NCBI scientific name of this row's taxon.
+      Root: "Lineage: name at this rank for this row (blank when the row sits above it)."
+      Domain: "Lineage: name at this rank for this row (blank when the row sits above it)."
+      Kingdom: "Lineage: name at this rank for this row (blank when the row sits above it)."
+      Phylum: "Lineage: name at this rank for this row (blank when the row sits above it)."
+      Class: "Lineage: name at this rank for this row (blank when the row sits above it)."
+      Order: "Lineage: name at this rank for this row (blank when the row sits above it)."
+      Family: "Lineage: name at this rank for this row (blank when the row sits above it)."
+      Genus: "Lineage: name at this rank for this row (blank when the row sits above it)."
+      Species: "Lineage: species name for this row; sub-species rows carry their parent species."
+      Priority pathogen group: >-
+        Group label from the pathogen list (input_sheets/pathogens.yaml): the listed TaxID and
+        everything below it in the report tree. Vibrio cholerae = the O1 (127906) and O139
+        (45888) nodes only, not the species node 666; Salmonella spp. = the S. enterica clade
+        (28901). Empty = not a listed pathogen.
+      Target group: "From the pathogen list: AMR, waterborne or non-waterborne."
+      Type: "From the pathogen list: bacteria, virus or eukaryotic."
+      Priority: WP2-priority where the pathogen list sets it.
+      file_name: >-
+        Kraken2 report the row came from: barcode, run accession(s) and database name. One
+        report per barcode — the newest when a run was re-processed.
+
+  # amr_data.feather — backend/app/parsers/amr_postprocessor.py (one row per resistance
+  # gene and drug-class profile per barcode, from wf-metagenomics --amr JSON).
+  amr:
+    include: [sample, nanopore_run]
+    columns:
+      pass_status: >-
+        wf-metagenomics AMR pass flag for the barcode (read count above the workflow's
+        minimum).
+      gene_description: >-
+        CARD description of the resistance gene. Generic descriptions ("From the Lahey
+        list of beta-lactamases.") are shared by several genes, so this is a label rather
+        than an identifier; the row's key is the description together with `resistance`.
+      multi_resistance: True when the gene is annotated with more than one drug class.
+      resistance: CARD drug class(es) of the gene, ';'-separated.
+      short_name: >-
+        Short code(s) for the drug class(es), ';'-separated — the shared ODIN code
+        scheme (e.g. pptd peptide, slfn sulfonamide, flrq fluoroquinolone).
+      read_count: >-
+        Reads mapping to this gene and drug-class profile in this barcode, counted once
+        each. Every gene row already passed the AMR screen (80% identity over 80% of the
+        reference gene), so the analysis counts a gene as detected at ≥ 1 read.
+      alignment_count: >-
+        Alignments behind `read_count`. A read aligning twice to the same gene is two
+        alignments and one read, so this is ≥ `read_count`. It is the number
+        wf-metagenomics itself reports.
+      classified_reads: >-
+        Reads Kraken2 placed anywhere in the tree for this barcode (the clade count on the
+        root row), from the report the SAME wf-metagenomics AMR run wrote in its
+        `kraken2/` directory. NOT the taxprofiler total: the two workflows use different
+        databases and classify several-fold different numbers of reads from the same
+        input, by a factor that varies per barcode.
+      total_reads: >-
+        Every read that step was given for this barcode — `classified_reads` plus the
+        unclassified row of the same report. The classified share ranges from 2% to 95%
+        across these barcodes, so the two totals are far apart and which one normalises
+        an abundance is a real choice: this one does not depend on how much of the
+        community the Kraken2 database happens to recognise, and the AMR counts beside it
+        come from a BLAST search of CARD that never uses that database. No rate is stored
+        — the consumer divides by whichever total suits what it is measuring, as the
+        taxonomy datasets do with `No of Frags root`. A barcode with genes but no readable
+        report fails the run rather than being written without totals.
+      coverage_percent:
+        description: Percentage of the reference covered, averaged over the alignments.
+        unit: "%"
+      identity_percent:
+        description: Identity of the aligned reads to the reference, averaged over the alignments.
+        unit: "%"
+      file: amr.json the row came from.
+
+  # amr_data_summary_by_resistance.feather — one row per drug class over the whole
+  # amr_data dataset (amr_postprocessor._create_amr_summary).
+  amr_summary:
+    columns:
+      resistance: CARD drug class(es) of the gene, ';'-separated — the row's key.
+      n_detections: >-
+        Gene rows of amr_data carrying this drug class, over all runs. A count of genes,
+        not of reads — "read_count" beside it holds those, and the two differ by orders of
+        magnitude.
+      run_accession: Number of distinct sequencing runs in which a gene of this drug class was found.
+      barcode: Number of distinct barcodes in which a gene of this drug class was found.
+      read_count: >-
+        Reads mapping to genes of this drug class, summed over every barcode and run. A
+        raw total: barcodes of different sequencing depth contribute unequally, so to
+        compare samples divide amr_data's `read_count` by its `total_reads` per barcode
+        (every read sequenced), pooling the totals of a sample sequenced in more than one
+        barcode before dividing.
+      alignment_count: Alignments behind read_count, summed over every barcode and run.
+      coverage_percent:
+        description: Mean reference coverage over the gene rows of this drug class.
+        unit: "%"
+      identity_percent:
+        description: Mean read identity over the gene rows of this drug class.
+        unit: "%"
+      sample_code: Sample codes in which this drug class was found, ';'-separated.
+
+  # BiomemeAssay.feather — backend/app/pipeline/scripts/traverse_biomeme.py with decode.py
+  # (one row per well × channel of every Biomeme qPCR run).
+  biomeme:
+    include: [sample]
+    columns:
+      Biomeme replicate: >-
+        Well label in the run file: a sample well (1–9) or a control — NTC… no-template
+        control, Pos positive control. The metadata's Biomeme_sample_ID lists the wells of one
+        sample; each control well appears once per run (is_control = true).
+      is_control: >-
+        true on the run's control wells (NTC…, Pos): one row per physical control well per
+        run, with sample_code empty and only run-level metadata. false on sample wells. Filter
+        with is_control = false (or presence not empty) for sample rows.
+      Well Number: Position of the well in the Biomeme Franklin (1–9).
+      Fluorophore: Detection channel (green, amber, red); each channel carries one assay.
+      Run Name: Biomeme run identifier (date-time, also the run file's name).
+      Assay Date: Date the qPCR run was performed.
+      Target ID: Assay (gene target) as named in the run file.
+      Target_ID: >-
+        Assay (gene target): Khe = Klebsiella pneumoniae, ctxA = toxigenic Vibrio cholerae,
+        STadh = Salmonella Typhi, uidA = Escherichia coli, E9L = Orthopoxvirus (generic),
+        G2R_G / G2R_WA / Mpox-K = Mpox virus.
+      Pathogen: Pathogen the assay targets (from config/assay-params.csv).
+      Date: Run date from the file.
+      Cq: >-
+        Quantification cycle: the cycle at which fluorescence crossed the threshold. Lower =
+        more template (≈ 3.3 cycles per tenfold). 0 = no amplification within the run —
+        filter with Cq > 0 and never average the raw column.
+      M:
+        description: Slope of the assay's standard curve, from assay-params.csv.
+        unit: Cq per log10 copies
+      B:
+        description: Intercept of the assay's standard curve (Cq at 1 copy), from assay-params.csv.
+        unit: Cq
+      E: >-
+        Amplification efficiency of the assay as recorded in assay-params.csv (not used in the
+        calculation).
+      T: Fluorescence threshold used for the assay (assay-params.csv).
+      Abundance:
+        description: >-
+          Calibrated gene copies in the reaction: 10^((Cq − B) / M) from the assay's standard
+          curve. Empty when Cq = 0 and on control wells.
+        unit: copies per reaction
+      Abundance diluted:
+        description: >-
+          Abundance corrected back to the undiluted sample: Abundance / dilution_factor. Equals
+          Abundance when no dilution was recorded.
+        unit: copies per reaction
+      Mean Abundance:
+        description: >-
+          Mean of Abundance over the sample's amplifying wells in this run — control wells
+          excluded. Empty on control wells.
+        unit: copies per reaction
+      log1pMeanAbundance: >-
+        ln(Mean Abundance + 1), i.e. numpy.log1p — a natural log, not log10: a value of 9.06 is
+        about 8,600 copies. Named logMeanAbundance in datasets written before 23 Sep 2026.
+      quality_flag: >-
+        0 not checked; 1 good — two or more of the sample's wells amplified; 2 questionable —
+        one well amplified; 3 no amplification (Cq = 0); 4 rejected by the NTC rule — the well
+        did not amplify at least 2 cycles earlier than the run's strongest amplifying
+        no-template control for this fluorophore and target, so it cannot be told from the
+        blank; 5 excluded — the lab declared this run's assay unreliable (assay-exclusions.csv,
+        e.g. reagents contaminated with positive-control DNA), so the well is neither a
+        detection nor a negative. Control wells are not scored: 3 when they did not amplify,
+        otherwise 0.
+      presence: >-
+        true = quality_flag 1 with Mean Abundance > 0 (replicated detection); true_x =
+        quality_flag 2 with Mean Abundance > 0 (single well); false = everything else,
+        including wells rejected by the NTC rule (flag 4) and excluded assays (flag 5). Empty
+        on control wells (is_control).
+      dilution_factor: >-
+        Fraction of the original sample strength that went into the reaction (0.5 = diluted
+        1:2); empty when undiluted.
+      Biomeme_sample_ID: >-
+        The run file's well labels that make up this sample, ',' separated, including the
+        run's controls (e.g. 5,6,NTC; NTC@9 = well 9 is a control the file mislabelled).
+        Empty on control rows.
+      biomeme_run_name: Biomeme run the sample was assayed in (same as Run Name).
+      site: Site name.
+      site_ID: Site code.
+      location: Location description of the site.
+      city: City of the site.
+      country_code: ISO country code of the site.
+      longitude:
+        description: Longitude of the sampling site.
+        unit: degrees east
+      latitude:
+        description: Latitude of the sampling site.
+        unit: degrees north

@@ -1,0 +1,72 @@
+<div class="page-container">
+  <div class="action-bar">
+    <h1>Sites</h1>
+    <span class="spacer"></span>
+    <button mat-raised-button color="primary" (click)="crud.openForm()">
+      <mat-icon>add</mat-icon> Add site
+    </button>
+  </div>
+
+  @if (crud.loading()) {
+    <mat-spinner diameter="40"></mat-spinner>
+  } @else {
+    <table mat-table matSort matSortActive="country" matSortDirection="asc" matSortDisableClear
+           [dataSource]="crud.dataSource" class="full-width mat-elevation-z2">
+      <ng-container matColumnDef="country">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Country</th>
+        <td mat-cell *matCellDef="let s">{{ s.country }}</td>
+      </ng-container>
+      <ng-container matColumnDef="country_code">
+        <th mat-header-cell *matHeaderCellDef>Country code</th>
+        <td mat-cell *matCellDef="let s">{{ s.country_code }}</td>
+      </ng-container>
+      <ng-container matColumnDef="city">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>City</th>
+        <td mat-cell *matCellDef="let s">{{ s.city }}</td>
+      </ng-container>
+      <ng-container matColumnDef="city_code">
+        <th mat-header-cell *matHeaderCellDef>City code</th>
+        <td mat-cell *matCellDef="let s">{{ s.city_code }}</td>
+      </ng-container>
+      <ng-container matColumnDef="location">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Location</th>
+        <td mat-cell *matCellDef="let s">{{ s.location }}</td>
+      </ng-container>
+      <ng-container matColumnDef="site">
+        <th mat-header-cell *matHeaderCellDef>Site letter</th>
+        <td mat-cell *matCellDef="let s">{{ s.site }}</td>
+      </ng-container>
+      <ng-container matColumnDef="site_code">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Site ID</th>
+        <td mat-cell *matCellDef="let s">{{ s.site_code }}</td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let s">
+          <button
+            mat-icon-button
+            matTooltip="Edit"
+            (click)="crud.openForm(s); $event.stopPropagation()"
+          >
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            matTooltip="Delete"
+            color="warn"
+            (click)="crud.remove(s); $event.stopPropagation()"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns" (click)="crud.openForm(row)"></tr>
+    </table>
+
+    @if (crud.isEmpty()) {
+      <app-empty-state [message]="crud.emptyMessage()"></app-empty-state>
+    }
+  }
+</div>

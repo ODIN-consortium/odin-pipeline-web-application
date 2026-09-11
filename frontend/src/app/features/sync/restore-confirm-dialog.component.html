@@ -1,0 +1,87 @@
+<h2 mat-dialog-title>Restore from snapshot</h2>
+
+<mat-dialog-content>
+  @if (totalDeleted() > 0) {
+    <div class="danger">
+      <mat-icon>delete_forever</mat-icon>
+      <span>
+        <strong>{{ totalDeleted() }} row(s) will be deleted.</strong>
+        A restore makes this database match the file, so anything recorded since the snapshot
+        was taken is removed — not merged. This is the only action in ODIN that deletes data you
+        have not named.
+      </span>
+    </div>
+  }
+
+  <p class="provenance">
+    From <code>{{ data.filename }}</code><br />
+    Taken {{ data.exportedAt }}
+    @if (data.exportedBy) {
+      on <strong>{{ data.exportedBy }}</strong>
+    }
+  </p>
+
+  @if (isNoOp()) {
+    <p>
+      This database already matches the snapshot
+      @if (totalUnchanged() > 0) {
+        — all {{ totalUnchanged() }} row(s) are identical
+      }. There is nothing to restore.
+    </p>
+  } @else {
+    <table mat-table [dataSource]="diff().tables">
+      <ng-container matColumnDef="table">
+        <th mat-header-cell *matHeaderCellDef>Table</th>
+        <td mat-cell *matCellDef="let t">{{ t.table }}</td>
+      </ng-container>
+      <ng-container matColumnDef="added">
+        <th mat-header-cell *matHeaderCellDef>Added back</th>
+        <td mat-cell *matCellDef="let t">{{ t.added }}</td>
+      </ng-container>
+      <ng-container matColumnDef="changed">
+        <th mat-header-cell *matHeaderCellDef>Overwritten</th>
+        <td mat-cell *matCellDef="let t">{{ t.changed }}</td>
+      </ng-container>
+      <ng-container matColumnDef="unchanged">
+        <th mat-header-cell *matHeaderCellDef>Identical</th>
+        <td mat-cell *matCellDef="let t">{{ t.unchanged }}</td>
+      </ng-container>
+      <ng-container matColumnDef="deleted">
+        <th mat-header-cell *matHeaderCellDef>Deleted</th>
+        <td mat-cell *matCellDef="let t">
+          <span [class.deleting]="t.deleted > 0">{{ t.deleted }}</span>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+
+    <p>
+      Pipeline history, hidden runs and merge choices are not part of a snapshot and are left
+      untouched. A fresh backup of your current data is downloaded before anything is written,
+      so this restore is itself reversible.
+    </p>
+
+    @if (needsAcknowledgement()) {
+      <mat-checkbox class="acknowledge" [(ngModel)]="acknowledged">
+        I understand {{ totalDeleted() }} row(s) will be deleted
+      </mat-checkbox>
+    }
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Cancel</button>
+  <button
+    mat-raised-button
+    color="warn"
+    [disabled]="!canRestore()"
+    (click)="restore()"
+  >
+    @if (totalDeleted() > 0) {
+      Delete {{ totalDeleted() }} and write {{ totalWritten() }} row(s)
+    } @else {
+      Write {{ totalWritten() }} row(s)
+    }
+  </button>
+</mat-dialog-actions>

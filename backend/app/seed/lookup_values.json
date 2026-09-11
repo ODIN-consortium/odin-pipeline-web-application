@@ -1,0 +1,35 @@
+{
+  "sample_type": [
+    { "code": "CTRL", "description": "Control" },
+    { "code": "DW",   "description": "Drinking water" },
+    { "code": "OW",   "description": "Other water" },
+    { "code": "SO",   "description": "Soil" },
+    { "code": "SW",   "description": "Surface water" },
+    { "code": "WI",   "description": "Wastewater inlet" },
+    { "code": "WM",   "description": "Wastewater mid-treatment" },
+    { "code": "WO",   "description": "Wastewater outlet" },
+    { "code": "WW",   "description": "Wastewater" },
+    { "code": "SG_P", "description": "Sewage sample (Passive sampler)" },
+    { "code": "SG_G", "description": "Sewage sample (Grab sample)" },
+    { "code": "RW",   "description": "River water" },
+    { "code": "CL",   "description": "Clinical Sample" }
+  ],
+  "protocol_id": [
+    { "code": "P1", "description": "SSU amplicon" },
+    { "code": "P2", "description": "metagenomics with amplification" },
+    { "code": "P3", "description": "amplification-based metagenomics and metatranscriptomics" },
+    { "code": "P4", "description": "PCR-based-Vibrio-specific" },
+    { "code": "P5", "description": "PCR-based-Mpox" }
+  ],
+  "sequencing_kit_id": [
+    { "code": "RB_AMP", "description": "rapid barcoding amplicons" },
+    { "code": "RB_GEN", "description": "rapid barcoding genomic DNA" },
+    { "code": "NB_GEN", "description": "native barcoding genomic DNA" }
+  ],
+  "mpox_type": [
+    { "code": "test_sample",         "description": "Test sample" },
+    { "code": "positive_control",    "description": "Positive control" },
+    { "code": "negative_control",    "description": "Negative control" },
+    { "code": "no_template_control", "description": "No template control" }
+  ]
+}

@@ -1,0 +1,17 @@
+# Normalize all text files to LF in the repository.
+# On Windows checkout, Git will leave them as LF (not convert to CRLF)
+# because eol=lf is explicit. This eliminates "CRLF will be replaced by LF"
+# warnings when staging files edited by Windows tools.
+* text=auto eol=lf
+
+# Binary files — never touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.pdf binary
+*.db  binary
+*.gz  binary
+*.zip binary

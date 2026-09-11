@@ -1,0 +1,124 @@
+<h2 mat-dialog-title>Import preview</h2>
+
+<mat-dialog-content>
+  @if (isReplaceMode() && totalDeleted() > 0) {
+    <div class="replace-danger">
+      <mat-icon>delete_forever</mat-icon>
+      <span>
+        <strong>Replace mode will delete {{ totalDeleted() }} existing row(s).</strong>
+        Rows absent from this workbook are removed from the sheets it covers. The per-sheet
+        counts below show where.
+      </span>
+    </div>
+  }
+
+  <p>Nothing has been written yet. This is what the workbook would do:</p>
+
+  <p class="mode-line">
+    Mode:
+    @if (isReplaceMode()) {
+      <strong>replace</strong> — rows missing from the workbook are deleted.
+    } @else {
+      <strong>merge</strong> — existing rows are updated, nothing is deleted.
+    }
+  </p>
+
+  @if (outcomes().length) {
+    <table mat-table [dataSource]="outcomes()" class="summary-table">
+      <ng-container matColumnDef="sheet">
+        <th mat-header-cell *matHeaderCellDef>Sheet</th>
+        <td mat-cell *matCellDef="let o">{{ o.sheet }}</td>
+      </ng-container>
+      <ng-container matColumnDef="created">
+        <th mat-header-cell *matHeaderCellDef>New</th>
+        <td mat-cell *matCellDef="let o">{{ o.created }}</td>
+      </ng-container>
+      <ng-container matColumnDef="updated">
+        <th mat-header-cell *matHeaderCellDef>Changed</th>
+        <td mat-cell *matCellDef="let o">{{ o.updated }}</td>
+      </ng-container>
+      <ng-container matColumnDef="unchanged">
+        <th mat-header-cell *matHeaderCellDef>Identical</th>
+        <td mat-cell *matCellDef="let o">{{ o.unchanged }}</td>
+      </ng-container>
+      <ng-container matColumnDef="deleted">
+        <th mat-header-cell *matHeaderCellDef>Deleted</th>
+        <td mat-cell *matCellDef="let o">{{ o.deleted }}</td>
+      </ng-container>
+      <ng-container matColumnDef="skipped">
+        <th mat-header-cell *matHeaderCellDef>Cannot import</th>
+        <td mat-cell *matCellDef="let o">{{ o.skipped }}</td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  } @else {
+    <p class="nothing-to-do">
+      No recognisable rows were found. Check that the sheets are named
+      <code>sites</code>, <code>samples</code>, <code>nanopore</code> or <code>biomeme</code>,
+      and that each has a header row.
+    </p>
+  }
+
+  @if (changeCount() > 0) {
+    <h3>{{ changeCount() }} row(s) will be changed</h3>
+    <div class="problems">
+      @for (c of changes(); track $index) {
+        <div class="problem-row">
+          <span class="problem-where">{{ c.sheet }} row {{ c.row ?? '?' }}</span>
+          <span>
+            @for (f of c.fields; track f.field) {
+              <span class="change-line">{{ describeField(f) }}</span>
+            }
+          </span>
+        </div>
+      }
+      @if (changesTruncated() > 0) {
+        <div class="problem-row">
+          <span class="problem-where">…</span>
+          <span>and {{ changesTruncated() }} more not listed here</span>
+        </div>
+      }
+    </div>
+  }
+
+  @if (problemCount() > 0) {
+    <h3>{{ problemCount() }} row(s) cannot be imported</h3>
+    <div class="problems">
+      @for (p of problems(); track $index) {
+        <div class="problem-row">
+          <span class="problem-where">{{ p.sheet }} row {{ p.row ?? '?' }}</span>
+          <span>{{ p.reason }}</span>
+        </div>
+      }
+      @if (problemsTruncated() > 0) {
+        <div class="problem-row">
+          <span class="problem-where">…</span>
+          <span>and {{ problemsTruncated() }} more not listed here</span>
+        </div>
+      }
+    </div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <p class="backup-note">
+    A backup of your current data is downloaded automatically before anything is written. It
+    restores what you have now — it cannot remove rows an import adds.
+  </p>
+  <button mat-button (click)="cancel()">Cancel</button>
+  <button
+    mat-raised-button
+    color="primary"
+    [disabled]="!canApply()"
+    (click)="apply()"
+  >
+    @if (totalDeleted() > 0) {
+      Delete {{ totalDeleted() }} and import {{ totalWrites() - totalDeleted() }} row(s)
+    } @else if (problemCount() > 0) {
+      Import the {{ totalWrites() }} valid row(s)
+    } @else {
+      Import {{ totalWrites() }} row(s)
+    }
+  </button>
+</mat-dialog-actions>

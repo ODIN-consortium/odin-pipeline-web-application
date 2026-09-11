@@ -1,0 +1,109 @@
+<div class="table-section">
+  <div class="table-title">
+    <mat-icon>table_chart</mat-icon>
+    {{ tableLabel() }}
+    <span style="font-size:12px; color:#888; font-weight:400;">
+      ({{ rows().length }} row{{ rows().length === 1 ? '' : 's' }})
+    </span>
+  </div>
+
+  <table mat-table [dataSource]="rows()" class="review-table mat-elevation-z1">
+
+    <!-- Category column -->
+    <ng-container matColumnDef="category">
+      <th mat-header-cell *matHeaderCellDef>Category</th>
+      <td mat-cell *matCellDef="let row">
+        @switch (row.category) {
+          @case ('new') {
+            <span class="cat-badge cat-new">New</span>
+          }
+          @case ('updated') {
+            <span class="cat-badge cat-updated">Updated</span>
+          }
+          @case ('independent_duplicate') {
+            <span class="cat-badge cat-dup">Duplicate</span>
+          }
+          @case ('conflict') {
+            <span class="cat-badge cat-conflict">Conflict</span>
+          }
+        }
+      </td>
+    </ng-container>
+
+    <!-- Row label column -->
+    <ng-container matColumnDef="label">
+      <th mat-header-cell *matHeaderCellDef>Identifier</th>
+      <td mat-cell *matCellDef="let row">
+        <strong>{{ getRowLabel(row.entry.incoming) }}</strong>
+      </td>
+    </ng-container>
+
+    <!-- Changes column -->
+    <ng-container matColumnDef="changes">
+      <th mat-header-cell *matHeaderCellDef>Changes</th>
+      <td mat-cell *matCellDef="let row">
+        @if (row.changedFields.length > 0) {
+          <table class="changes-table">
+            <thead>
+              <tr>
+                <th class="key-col">Field</th>
+                <th class="mine-col">Mine</th>
+                <th class="theirs-col">Theirs</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (field of row.changedFields; track field) {
+                <tr>
+                  <td class="key-col">
+                    <em>{{ field }}</em>
+                  </td>
+                  <td class="mine-col">
+                    @if (row.action === 'keep_mine' || row.action === 'skip') {
+                      <span class="val-mine">{{ row.entry.local?.[field] ?? '—' }}</span>
+                    } @else {
+                      <span class="val-old">{{ row.entry.local?.[field] ?? '—' }}</span>
+                    }
+                  </td>
+                  <td class="theirs-col">
+                    @if (row.action === 'use_theirs' || row.action === 'accept') {
+                      <span class="val-theirs">{{ row.entry.incoming[field] ?? '—' }}</span>
+                    } @else {
+                      <span class="val-new">{{ row.entry.incoming[field] ?? '—' }}</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else if (row.category === 'new') {
+          <div class="new-record-values">
+            <span class="label">New values:</span>
+            @for (nf of row.newFields; track nf.field) {
+              <div class="field-value">
+                <span class="field-name">{{ nf.field }}:</span>
+                <span class="field-value-text">{{ nf.value }}</span>
+              </div>
+            }
+          </div>
+        }
+      </td>
+    </ng-container>
+
+    <!-- Action column -->
+    <ng-container matColumnDef="action">
+      <th mat-header-cell *matHeaderCellDef>Action</th>
+      <td mat-cell *matCellDef="let row">
+        <mat-form-field appearance="outline" class="action-select" style="font-size:13px;">
+          <mat-select [(ngModel)]="row.action">
+            @for (opt of actionOptions(row.category); track opt.value) {
+              <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+  </table>
+</div>

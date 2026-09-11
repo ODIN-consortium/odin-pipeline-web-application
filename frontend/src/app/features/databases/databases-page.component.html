@@ -1,0 +1,146 @@
+<div class="page-header">
+  <h2>Databases</h2>
+  <span class="spacer"></span>
+  <button mat-icon-button (click)="load()" matTooltip="Refresh">
+    <mat-icon>refresh</mat-icon>
+  </button>
+</div>
+
+<p class="page-hint">
+  Database entries used by the taxprofiler <code>--databases</code> flag. Enter paths in any
+  format (Windows, Git Bash, WSL) — ODIN converts them to the correct format for the execution
+  environment at launch time. WSL-internal paths like <code>/home/user/...</code> are passed
+  through unchanged.
+</p>
+
+@if (sourceIsFile()) {
+  <div class="file-source-banner">
+    <mat-icon class="banner-icon">info</mat-icon>
+    <div>
+      <strong>Databases loaded from file.</strong>
+      Entries below are read-only — they come from <code>{{ sourceFile() }}</code>.
+      To change them, edit that file directly. Entries added on this page are ignored while the file exists.
+    </div>
+  </div>
+}
+
+@if (loading()) {
+  <div class="loading-row"><mat-spinner diameter="24"></mat-spinner><span>Loading…</span></div>
+}
+
+@if (!loading() && entries().length > 0) {
+  <table mat-table [dataSource]="entries()" class="db-table">
+    <ng-container matColumnDef="tool">
+      <th mat-header-cell *matHeaderCellDef>Tool</th>
+      <td mat-cell *matCellDef="let row">{{ row.tool }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="db_name">
+      <th mat-header-cell *matHeaderCellDef>DB name</th>
+      <td mat-cell *matCellDef="let row">{{ row.db_name }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="db_params">
+      <th mat-header-cell *matHeaderCellDef>Params</th>
+      <td mat-cell *matCellDef="let row">
+        <code>{{ row.db_params || '—' }}</code>
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="db_path">
+      <th mat-header-cell *matHeaderCellDef>Path</th>
+      <td mat-cell *matCellDef="let row">
+        <code class="path-cell">{{ row.db_path }}</code>
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="actions">
+      <th mat-header-cell *matHeaderCellDef></th>
+      <td mat-cell *matCellDef="let row">
+        <button mat-icon-button matTooltip="Edit" (click)="startEdit(row)">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button color="warn" matTooltip="Delete" (click)="deleteEntry(row)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="sourceIsFile() ? columnsReadOnly : columns"></tr>
+    <tr mat-row *matRowDef="let row; columns: sourceIsFile() ? columnsReadOnly : columns"></tr>
+  </table>
+}
+
+@if (!loading() && entries().length === 0 && !sourceIsFile()) {
+  <app-empty-state message="No database entries yet. Add one below."></app-empty-state>
+}
+
+@if (!loading() && entries().length === 0 && sourceIsFile()) {
+  <app-empty-state message="The databases file exists but contains no entries."></app-empty-state>
+}
+
+<!-- Add / Edit form — only shown when using DB entries (no file configured) -->
+@if (!sourceIsFile()) {
+  <mat-card class="add-card">
+    <mat-card-title>{{ editingEntry() ? 'Edit database entry' : 'Add database entry' }}</mat-card-title>
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="saveEntry()" class="add-form">
+        <mat-form-field>
+          <mat-label>Tool *</mat-label>
+          <mat-select formControlName="tool" (selectionChange)="onToolChange($event.value)">
+            @for (opt of toolOptions; track opt.value) {
+              <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>DB name *</mat-label>
+          <input matInput formControlName="db_name" placeholder="db1" />
+          @if (form.get('db_name')?.hasError('required') && form.get('db_name')?.touched) {
+            <mat-error>Required</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>CLI params</mat-label>
+          <input matInput formControlName="db_params" />
+          <mat-hint>Extra flags passed to the tool, e.g. --quick</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field class="full-width">
+          <mat-label>Path *</mat-label>
+          <input
+            matInput
+            formControlName="db_path"
+            [placeholder]="selectedToolOption()?.pathHint ?? ''"
+          />
+          <mat-hint>
+            Any format accepted: Windows (D:...), Git Bash (/d/...), WSL (/mnt/d/...), or
+            WSL-internal (/home/...)
+          </mat-hint>
+          @if (form.get('db_path')?.hasError('required') && form.get('db_path')?.touched) {
+            <mat-error>Required</mat-error>
+          }
+        </mat-form-field>
+
+        <div class="form-actions">
+          @if (editingEntry()) {
+            <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
+          }
+          <button
+            mat-raised-button
+            color="primary"
+            type="submit"
+            [disabled]="form.invalid || saving()"
+          >
+            @if (saving()) {
+              <mat-spinner diameter="18" style="display:inline-block"></mat-spinner>
+            }
+            {{ editingEntry() ? 'Save' : 'Add' }}
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+}

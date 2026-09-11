@@ -1,0 +1,178 @@
+<div class="page-container">
+  <h1>Sync</h1>
+  <p class="subtitle">
+    Export this device's data to share with another device, or import
+    data from another device to merge it into this database.
+  </p>
+
+  <!-- ── Device name warning ─────────────────────────────────────── -->
+  @if (deviceNameMissing()) {
+    <div class="device-warning">
+      <mat-icon>warning</mat-icon>
+      <span>
+        <strong>Device name not set.</strong>
+        All rows you create will be recorded with an unknown author, making
+        it harder to trace changes after merging.
+        <a routerLink="/settings">Set a device name in Settings</a> before syncing.
+      </span>
+    </div>
+  }
+
+  <!-- ── Snapshot (JSON) ─────────────────────────────────────────── -->
+  <!-- One file serves three purposes, so the three actions sit together and say plainly how
+       they differ. Restore and merge take the identical file and do opposite things, which is
+       exactly why they are separate controls rather than one with a mode. -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>archive</mat-icon>&nbsp; Snapshot (JSON)
+      </mat-card-title>
+      <mat-card-subtitle>
+        A complete copy of this device's metadata. Keep it as a backup, or hand it to another
+        device.
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content style="padding-top: 16px;">
+      <div class="card-actions">
+        <button mat-raised-button color="primary" (click)="onExport()">
+          <mat-icon>download</mat-icon> Download snapshot
+        </button>
+      </div>
+
+      <h4>Restore from a snapshot</h4>
+      <p class="action-hint">
+        Makes this database match the file. Anything recorded since the snapshot was taken is
+        <strong>deleted</strong>. Use this to undo a bad import or go back to a known state.
+      </p>
+      <div class="card-actions">
+        <label class="file-input-label">
+          <mat-icon>restore</mat-icon>
+          Choose a snapshot to restore from…
+          <input
+            type="file"
+            accept=".json,application/json"
+            (change)="restoreFromSnapshot($event)"
+          />
+        </label>
+        @if (restoring()) {
+          <mat-spinner diameter="28"></mat-spinner>
+        }
+      </div>
+
+      <h4>Merge from another device</h4>
+      <p class="action-hint">
+        Keeps both sides' data and never deletes. You review each difference and decide row by
+        row. Use this to combine work from a colleague's device.
+      </p>
+      <div class="card-actions">
+        <label class="file-input-label">
+          <mat-icon>attach_file</mat-icon>
+          {{ selectedFileName() || 'Choose a snapshot to merge from…' }}
+          <input
+            type="file"
+            accept=".json,application/json"
+            (change)="onFileSelected($event)"
+          />
+        </label>
+        @if (loadingPreview()) {
+          <mat-spinner diameter="28"></mat-spinner>
+        }
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── Spreadsheet (Excel) ─────────────────────────────────────── -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>table_view</mat-icon>&nbsp; Spreadsheet (Excel)
+      </mat-card-title>
+      <mat-card-subtitle>
+        The same records in the format the field templates and bash scripts use. Covers sites,
+        samples, nanopore and biomeme — not lookup lists or database definitions, so a snapshot
+        is the better backup.
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content style="padding-top: 16px;">
+      <div class="card-actions" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <button mat-stroked-button color="primary" (click)="exportExcel()">
+          <mat-icon>download</mat-icon> Export metadata to Excel
+        </button>
+
+        <input
+          #excelImportInput
+          type="file"
+          accept=".xlsx"
+          style="display:none"
+          (change)="importExcel($event)"
+        />
+        <button
+          mat-stroked-button
+          color="primary"
+          [disabled]="importing()"
+          (click)="excelImportInput.click()"
+          matTooltip="Import metadata from an Excel workbook"
+        >
+          <mat-icon>upload</mat-icon> Import metadata from Excel
+        </button>
+
+        <mat-slide-toggle
+          [checked]="importReplaceMode()"
+          (change)="importReplaceMode.set($event.checked)"
+          matTooltip="Treats the workbook as authoritative for the sheets it contains"
+        >
+          Delete rows missing from the workbook
+        </mat-slide-toggle>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── Preview results ─────────────────────────────────────────── -->
+  @if (preview(); as p) {
+    <mat-card class="section-card">
+      <mat-card-header>
+        <mat-card-title>Merge preview</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="preview-meta">
+          <strong>From:</strong> {{ p.exported_by }}&nbsp;&nbsp;
+          <strong>Exported:</strong> {{ p.exported_at | slice:0:10 }}
+        </p>
+
+        @if (hasChanges()) {
+
+          @for (table of tablesWithRows(); track table) {
+            <app-sync-review-table [table]="table" [rows]="rowsByTable()[table]" />
+          }
+
+          <mat-divider style="margin: 16px 0;"></mat-divider>
+
+          <div class="apply-bar">
+            <button
+              mat-raised-button
+              color="primary"
+              [disabled]="loadingApply()"
+              (click)="onApply()"
+            >
+              @if (loadingApply()) {
+                <mat-spinner diameter="20" style="display:inline-block; margin-right:8px;"></mat-spinner>
+              }
+              <mat-icon>sync</mat-icon> Apply selected changes
+            </button>
+
+            <button mat-button (click)="onClearPreview()">
+              <mat-icon>close</mat-icon> Clear
+            </button>
+          </div>
+
+        } @else {
+          <p class="no-changes">
+            <mat-icon style="vertical-align:middle; color:#2e7d32;">check_circle</mat-icon>
+            &nbsp; No changes — this device is already up to date with the imported data.
+          </p>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+
+</div>

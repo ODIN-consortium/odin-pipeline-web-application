@@ -1,0 +1,44 @@
+{
+  "title": "ODIN pipeline web application: metadata registration and Nextflow pipeline launching for environmental pathogen surveillance",
+  "upload_type": "software",
+  "license": "agpl-3.0-only",
+  "description": "<p>A browser-based application (FastAPI and Angular, deployed with Docker) for registering sequencing and qPCR metadata and launching the ODIN analysis pipelines: Kraken 2 taxonomic profiling with nf-core/taxprofiler, antimicrobial resistance detection and 16S/18S profiling with epi2me-labs/wf-metagenomics, Mpox consensus analysis with artic-mpxv-nf, and Biomeme qPCR decoding. Metadata are held in a SQLite database and results are written as Feather datasets for the Enlighten viewer.</p>",
+  "creators": [
+    {
+      "name": "Cook, Jeremy",
+      "affiliation": "NORCE Research AS",
+      "orcid": "0000-0002-9439-7736"
+    },
+    {
+      "name": "Fonnes, Gro",
+      "affiliation": "NORCE Research AS",
+      "orcid": "0000-0002-5191-5417"
+    }
+  ],
+  "keywords": [
+    "ODIN",
+    "environmental surveillance",
+    "wastewater",
+    "metagenomics",
+    "Oxford Nanopore",
+    "Kraken 2",
+    "antimicrobial resistance",
+    "Nextflow"
+  ],
+  "grants": [
+    {
+      "id": "10.13039/501100000780::101103253"
+    },
+    {
+      "id": "10.13039/501100000780::101195186"
+    }
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.21775192",
+      "relation": "requires",
+      "scheme": "doi",
+      "resource_type": "dataset"
+    }
+  ]
+}

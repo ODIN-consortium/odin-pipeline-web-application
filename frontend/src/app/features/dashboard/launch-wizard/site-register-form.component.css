@@ -1,0 +1,6 @@
+/* The Site heading opened the wizard's register step, where `.section-title:first-of-type`
+   removed its top margin. It is this component's only section title, so the override is
+   unconditional here; the wizard's later headings keep the shared 20px. */
+.section-title {
+  margin-top: 0;
+}
